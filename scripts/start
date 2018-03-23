@@ -1,3 +1,7 @@
 #!/bin/bash
-
-out_host/gemx_api_gemm.exe xclbins/gemm_perf_vcu1525.xclbin 512 512 512 512 512 512 512 1 0 A B C X
+#export XILINX_SDX=/usr/local/xilinx
+#export XILINX_VIVADO=/usr/local/xilinx/Vivado
+#export LD_LIBRARY_PATH=/usr/local/xilinx/platforms/xilinx_vcu1525_dynamic_5_0/sw/lib/x86_64/lib:/usr/local/xilinx/runtime/lib/x86_64:/opt/boost/lib:$LD_LIBRARY_PATH
+#export HALLIB=libxclgemdrv.so
+export LD_LIBRARY_PATH=/opt/boost/lib:/opt/sdx_runtime/runtime/lib/x86_64:/opt/sdx_runtime/opencv:$LD_LIBRARY_PATH
+/opt/gemx/out_host/gemx_api_gemm.exe /opt/gemx/xclbins/gemm_perf_vcu1525.xclbin 512 512 512 512 512 512 512 1 0 A B C X

@@ -121,14 +121,14 @@ else
   $(error Unknown GEMX_part ${GEMX_part})
 endif
 
-ifeq ("$(wildcard $(XDEVICE_REPO_PATH))","")
-  ifeq ("$(wildcard $(PLATFORM_REPO_PATH))","")
-    $(error Missing DSA or platform repo)
-  endif
-endif
-ifeq ("$(XDEVICE))","")
-  $(error XDEVICE)
-endif
+#ifeq ("$(wildcard $(XDEVICE_REPO_PATH))","")
+#  ifeq ("$(wildcard $(PLATFORM_REPO_PATH))","")
+#    $(error Missing DSA or platform repo in ${XDEVICE_REPO_PATH} or ${PLATFORM_REPO_PATH})
+#  endif
+#endif
+#ifeq ("$(XDEVICE))","")
+#  $(error XDEVICE)
+#endif
 
 
 KERNEL_CU_OPTS = --nk gemxKernel_0:1:gemxKernel_0
@@ -232,7 +232,6 @@ HOST_CFLAGS = -g -O0 -std=c++11 \
 	      			-DBOOST_COMPUTE_THREAD_SAFE \
               -D FLOW_HLS_CSIM $(CFLAGS_K) \
 	      			-D HLS_NO_XIL_FPO_LIB=1 \
-              -I$(XILINX_SDX)/Vivado_HLS/include \
               -I$(XILINX_VIVADO)/include \
               -I${XILINX_SDX}/runtime/include/1_2 
 
