@@ -362,7 +362,7 @@ GEMX_HOST_CFLAGS = -O2 -std=c++11 -fPIC \
 									-D GEMX_fpgaDdrBanks=${GEMX_fpgaDdrBanks} \
 									-Wno-ignored-attributes
 
-GEMX_HOST_LFLAGS = -L$(BOOST_LIB) -L$(XILINX_SDX)/runtime/lib/x86_64 -lz -lxilinxopencl -lstdc++ -lrt -pthread
+GEMX_HOST_LFLAGS = -L$(BOOST_LIB) -L$(XOPENCL_LIB_PATH) -lz -lxilinxopencl -lstdc++ -lrt -pthread
 
 KERNEL_XOS = ${OUT_DIR}/k0dir/gemx.xo
 ifeq ($(shell test $(GEMX_numKernels) -gt 1; echo $$?),0)

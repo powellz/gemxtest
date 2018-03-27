@@ -222,7 +222,7 @@ endif
 
 CLCC_LINK_OPT += --kernel_frequency ${GEMX_kernelVivadoFreq}
 CLCC_OPT += --xp prop:solution.hls_pre_tcl=../hls_config.tcl
-HOST_CFLAGS = -g -O0 -std=c++11 \
+HOST_CFLAGS = -g -O2 -std=c++11 \
               -I $(BOOST_SRC) \
               -DCL_USE_DEPRECATED_OPENCL_1_1_APIS \
               -DBOOST_COMPUTE_DEBUG_KERNEL_COMPILATION \

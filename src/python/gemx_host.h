@@ -28,9 +28,40 @@
 //#define GEMX_PERF_DBG
 using namespace std;
 namespace gemx {
+
+template<class HType> class GEMMHost;
+
 typedef enum {
     OpControl, OpGemv, OpGemm, OpTransp, OpSpmv, OpResult, OpFail, OpFcn
 } OpType;
+
+
+class GEMXHostProfiler {
+public:
+    unordered_map < string, double> func_time;
+    unordered_map < string, unsigned long long> func_calls;
+    static GEMXHostProfiler& Instance() {
+        static GEMXHostProfiler theInstance;
+        return theInstance;
+    }
+protected:
+    GEMXHostProfiler() {
+
+    }
+};
+template<typename HType>
+class GEMXHostHandle {
+public:
+    shared_ptr<GEMMHost<HType>> gh_ptr;
+    static GEMXHostHandle& Instance() {
+        static GEMXHostHandle theInstance;
+        return theInstance;
+    }
+protected:
+    GEMXHostHandle() {
+
+    }
+};
 
 class XTimer
 {
@@ -38,13 +69,13 @@ class XTimer
     XTimer() : beg_(clock_::now()) {}
     void reset() { beg_ = clock_::now(); }
     double elapsed() const {
-      return std::chrono::duration_cast<second_>
+      return chrono::duration_cast<second_>
         (clock_::now() - beg_).count(); }
 
   private:
-    typedef std::chrono::high_resolution_clock clock_;
-    typedef std::chrono::duration<double, std::ratio<1> > second_;
-    std::chrono::time_point<clock_> beg_;
+    typedef chrono::high_resolution_clock clock_;
+    typedef chrono::duration<double, ratio<1> > second_;
+    chrono::time_point<clock_> beg_;
 };
 
 class kArgs {
@@ -107,20 +138,20 @@ public:
         m_fcn_args.m_postScaleVal = (post_scale << 8) | (post_shift & 0x000000ff);
         m_fcn_args.m_PReLUVal = (prelu_scale << 6) | (prelu_alpha & 0x003f);
 
-        //std::cout << "s_dummy: " << m_fcn_args.s_dummy << std::endl;
+        //cout << "s_dummy: " << m_fcn_args.s_dummy << endl;
         //printf ("PReLUVal: %d\n", m_fcn_args.m_PReLUVal);
-        //std::stringstream stream;
-        //std::cout << "optype: " << optype << " p_Aoffset: " << p_Aoffset << std::endl;
+        //stringstream stream;
+        //cout << "optype: " << optype << " p_Aoffset: " << p_Aoffset << endl;
 
         /*
          int * data = (int*)asByteArray();
          for (int i = 0; i < sizeInBytes()/4; i++){
-             std::cout << "word " << i << ": " << data[i] << std::endl;
+             cout << "word " << i << ": " << data[i] << endl;
          }
          */
 
-        //std::string result( stream.str() );
-        //std::cout << "Hex: " << result << std::endl;
+        //string result( stream.str() );
+        //cout << "Hex: " << result << endl;
     }
     size_t sizeInBytes() {
         return sizeof(m_fcn_args);
@@ -229,24 +260,22 @@ public:
     }
 
     void multiply(Mat & p_A, Mat & p_B) {
-        T l_val = 0;
         assert(p_A.rows() == rows());
         assert(p_A.cols() == p_B.rows());
         assert(p_B.cols() == cols());
         for (unsigned int row = 0; row < rows(); ++row) {
             for (unsigned int col = 0; col < cols(); ++col) {
-                T l_val = 0;
+                int64_t l_val = 0;
                 for (unsigned int k = 0; k < p_A.cols(); ++k) {
                     l_val += p_A.getVal(row, k) * p_B.getVal(k, col);
                 }
-                //cout << "    DEBUG multiply setting row=" << row << " col=" << col << endl;
-                getVal(row, col) = l_val;
+                getVal(row, col) = (T)l_val;
             }
         }
     }
     
         void
-    multiplyAddScale(Mat & p_A, Mat & p_B,  Mat<int> & p_X, int32_t p_postScale) {
+    multiplyAddScale(Mat & p_A, Mat & p_B,  Mat<int> & p_X, int postScaleVal, int postScaleShift) {
         assert(p_A.rows() == rows());
         assert(p_A.cols() == p_B.rows());
         assert(p_B.cols() == cols());
@@ -259,9 +288,8 @@ public:
               l_val += p_A.getVal(row, k) * p_B.getVal(k, col);
             }
 	    l_val += p_X.getVal(row, col);
-	    l_val = (l_val >> (p_postScale & 0x00ff)) * (p_postScale >> 8);	
-            T l_entry = (T)(l_val);
-            getVal(row, col) = l_entry;
+                l_val = (l_val >> postScaleShift ) * postScaleVal;
+                getVal(row, col) = (T)(l_val);
           }
         }
       }
@@ -278,18 +306,11 @@ public:
                 int64_t l_val = 0;
                 for (unsigned int k = 0; k < p_A.cols(); ++k) {
                     l_val += p_A.getVal(row, k) * p_B.getVal(k, col);
-                    //                          if ((row==2) && (col == 0)) {
-                    //                                  if (p_B.getVal(k, col) != 0) {
-                    //                                      std::cout << " A[2," << std::dec << k << "]= " << p_A.getVal(row, k) << std::hex << " 0x" << p_A.getVal(row, k);
-                    //                                      std::cout << " B[" << std::dec << k << ",0]= " << p_B.getVal(k,col) <<  std::hex << " 0x" << p_B.getVal(k,col);
-                    //                                      std::cout << " A*B+C = " << std::dec << l_val << std::hex << " 0x" << l_val << "\n";
-                    //                                  }
-                    //                          }
                 }
 
                 //                      if ((row == 2) && (col == 0)) {
-                //                          std::bitset<64> l_bVal{l_val};
-                //                          std::cout << "C[2,0]= " << l_bVal << "\n";
+                //                          bitset<64> l_bVal{l_val};
+                //                          cout << "C[2,0]= " << l_bVal << "\n";
                 //                      }
                 l_val += p_X.getVal(row,col);
                 unsigned int l_psShift = p_postScale & 0x00ff;
@@ -298,38 +319,6 @@ public:
                 T l_entry = (T)(l_val);
                 if (l_entry < 0) {
                     l_entry = (l_entry  >> (p_PReluVal & 0x003f))* (T)(p_PReluVal >> 6);
-                }
-                getVal(row, col) = l_entry;
-            }
-        }
-    }
-    void matMultWithScaleAndPRelu(Mat & p_A, Mat & p_B, int32_t p_bias, int32_t p_postScale, int16_t p_PReluVal) {
-        assert(p_A.rows() == rows());
-        assert(p_A.cols() == p_B.rows());
-        assert(p_B.cols() == cols());
-        for (unsigned int row = 0; row < rows(); ++row) {
-            for (unsigned int col = 0; col < cols(); ++col) {
-                int64_t l_val = 0;
-                for (unsigned int k = 0; k < p_A.cols(); ++k) {
-                    l_val += p_A.getVal(row, k) * p_B.getVal(k, col);
-                }
-
-                l_val += p_bias;
-                l_val = (l_val >> (p_postScale & 0x00ff)) * (p_postScale >> 8);
-                //handle saturation
-                if (l_val & 0x100000000){//negative number
-                    if ((l_val & 0x0ffff0000) != 0xffff0000) {//underflow
-                        l_val = 0x8000;
-                    }
-                }
-                else {
-                    if ((l_val & 0x0ffff0000) != 0) {
-                        l_val = 0x7fff;
-                    }
-                }
-                T l_entry = (T)(l_val);
-                if (l_entry < 0) {
-                    l_entry = (l_entry * (T)(p_PReluVal >> 6)) >> (p_PReluVal & 0x003f);
                 }
                 getVal(row, col) = l_entry;
             }
@@ -477,7 +466,7 @@ public:
     }
 
     bool cmpVal(float p_TolRel, float p_TolAbs, T vRef, T v,
-            std::string p_Prefix, bool &p_exactMatch, unsigned int p_Verbose) {
+            string p_Prefix, bool &p_exactMatch, unsigned int p_Verbose) {
         float l_diffAbs = abs(v - vRef);
         float l_diffRel = l_diffAbs;
         if (vRef != 0) {
@@ -488,11 +477,11 @@ public:
                                 || (l_diffAbs <= p_TolAbs);
         if ((p_Verbose >= 3) || ((p_Verbose >= 2) && !p_exactMatch)
                 || ((p_Verbose >= 1) && !l_status)) {
-            std::cout << p_Prefix << "  ValRef " << std::left
-                    << std::setw(GEMX_CMP_WIDTH) << vRef << " Val " << std::left
-                    << std::setw(GEMX_CMP_WIDTH) << v << "  DifRel "
-                    << std::left << std::setw(GEMX_CMP_WIDTH) << l_diffRel
-                    << " DifAbs " << std::left << std::setw(GEMX_CMP_WIDTH)
+            cout << p_Prefix << "  ValRef " << left
+                    << setw(GEMX_CMP_WIDTH) << vRef << " Val " << left
+                    << setw(GEMX_CMP_WIDTH) << v << "  DifRel "
+                    << left << setw(GEMX_CMP_WIDTH) << l_diffRel
+                    << " DifAbs " << left << setw(GEMX_CMP_WIDTH)
             << l_diffAbs << "  Status " << l_status << "\n";
         }
         return (l_status);
@@ -504,8 +493,9 @@ public:
 class XCL_FPGA {
 public:
     XCL_FPGA() = delete;
-    XCL_FPGA(const string & xclbin, const string & kernelName) {
+    XCL_FPGA(const string & xclbin, const string & kernelName, const vector<unsigned> & ddrBanks) {
         loadXclbin(xclbin, kernelName);
+        _ddrbanks = ddrBanks;
     }
 
     ~XCL_FPGA() {
@@ -521,8 +511,7 @@ public:
         //boost::compute::command_queue queue(boost::compute::system::default_context(), boost::compute::system::default_device(), CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE | CL_QUEUE_PROFILING_ENABLE);
         boost::compute::command_queue queue(
                 boost::compute::system::default_context(),
-                boost::compute::system::default_device(),
-                CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE);
+                boost::compute::system::default_device() /* CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE*/);
         m_CommandQueue = move(queue);
         // Construct an OpenCL program from the precompiled kernel file
         m_Program = move(
@@ -534,15 +523,10 @@ public:
     }
 
     boost::compute::buffer createBuf(void *ptr, size_t sz_bytes) {
-        //decltype of cl_mem_ext_ptr_t.flags
-
-        //unsigned l_k2bank[] = {GEMX_fpgaDdrBanks};
-        //std::cout << "l_k2bank: " << l_k2bank[0] << std::endl;
-
         cl_mem_ext_ptr_t l_bufExt;
         //l_bufExt.obj = NULL;
         l_bufExt.param = 0;
-        l_bufExt.flags = GEMX_fpgaDdrBanks;
+        l_bufExt.flags = _ddrbanks[0];
         l_bufExt.obj = ptr;
         // Buffers
         return boost::compute::buffer(m_Context, sz_bytes,
@@ -590,8 +574,7 @@ public:
         cout << "copyFromFpga: " << t.elapsed() << endl;
 #endif
     }
-
-    void execKernel(const boost::compute::buffer & instr_buf, bool sync_exec = false) {
+    void execKernel(const boost::compute::buffer & instr_buf, bool sync_exec = true) {
         boost::compute::extents<1> offset { 0 };
         boost::compute::extents<1> global { 1 };
         // Use only 1 CU
@@ -600,16 +583,17 @@ public:
         m_Kernel.set_args(instr_buf, instr_buf);
 
         XTimer t;
-        boost::compute::event l_event = m_CommandQueue.enqueue_nd_range_kernel(
-                m_Kernel, offset, global, local, m_waitInput);
+        //boost::compute::event l_event = m_CommandQueue.enqueue_nd_range_kernel(
+        //        m_Kernel, offset, global, local, m_waitInput);
+        boost::compute::event l_event = m_CommandQueue.enqueue_task(m_Kernel, m_waitInput);
 
-        if ( 1 ) {
+
+        if ( sync_exec ) {
             l_event.wait();
         } else{
             m_waitOutput.insert(l_event);
         }
         m_waitInput.clear();
-
 #ifdef GEMX_PERF_DBG
         cout << "execKernel: " << t.elapsed() << endl;
 #endif
@@ -618,14 +602,18 @@ public:
 
     void wait ()
     {
+        //cout << "out wait sz: " << m_waitOutput.size() << endl;
         for (size_t i = 0; i < m_waitOutput.size(); i++){
+            //cout << "OpenCL event status: " <<  m_waitOutput[i].status() << endl;
             m_waitOutput[i].wait();
+            //cout << "OpenCL event status after wait: " <<  m_waitOutput[i].status() << endl;
         }
         m_waitInput.clear();
         m_waitOutput.clear();
     }
 
 private:
+    vector<unsigned> _ddrbanks;
     boost::compute::program m_Program;
     boost::compute::kernel m_Kernel;
     boost::compute::context m_Context;
@@ -640,8 +628,28 @@ public:
     ~GEMMHost() {
     }
     GEMMHost(const GEMMHost<HType> &) = delete;
-    GEMMHost(const string & xclbin, const string & kernelName) {
-        _fpga = shared_ptr<XCL_FPGA>(new XCL_FPGA(xclbin, kernelName));
+    GEMMHost(const string & xclbin, const string & kernelName, const string &device) {
+        vector<unsigned>ddrBanks;
+
+        unsigned ddr_flags;
+        if ( device == "ku115"){
+            ddrBanks = {XCL_MEM_DDR_BANK0, XCL_MEM_DDR_BANK2, XCL_MEM_DDR_BANK1, XCL_MEM_DDR_BANK3};
+        }
+        else if( device == "kcu1500"){
+            ddrBanks = {XCL_MEM_DDR_BANK0, XCL_MEM_DDR_BANK1, XCL_MEM_DDR_BANK2, XCL_MEM_DDR_BANK3};
+        }
+        else if ( device == "vu9p"){
+            ddrBanks = {XCL_MEM_DDR_BANK0, XCL_MEM_DDR_BANK3, XCL_MEM_DDR_BANK2, XCL_MEM_DDR_BANK1};
+        }
+        else if ( device == "vu9pf1"){
+            ddrBanks = {XCL_MEM_DDR_BANK3, XCL_MEM_DDR_BANK2, XCL_MEM_DDR_BANK0, XCL_MEM_DDR_BANK1};
+        }
+        else{
+            cerr << "Unsupported device! Options are ku115, kcu1500, vu9p, vu9pf1" << endl;
+            assert( device == "ku115" || device == "kcu1500" || device == "vu9p" || device == "vu9pf1" );
+        }
+
+        _fpga = shared_ptr<XCL_FPGA>(new XCL_FPGA(xclbin, kernelName,ddrBanks));
         void *aligned_mem = nullptr;
         assert(!posix_memalign(&aligned_mem, PAGE_SIZE, INSTR_BUF_SIZE));
         _instrBuf = shared_ptr<char>((char*) aligned_mem);
@@ -659,11 +667,11 @@ public:
                 KERN_DBG_BUF_SIZE, true);
     }
 
-    bool AddGEMMOp(const HType & A, const HType & B, const HType &C, const HType & bias, unsigned int m, unsigned int k, unsigned int n, int postScale, int postShift) {
+    virtual bool AddGEMMOp(const HType & A, const HType & B, const HType &C, const HType & bias, unsigned int m, unsigned int k, unsigned int n, int postScale, int postShift) {
         return AddGEMMOp (A, B, C, bias, m, k, n, k, n, n, n, postScale, postShift);
     }
 
-    bool AddGEMMOp(const HType & A, const HType & B, const HType &C, const HType & bias, unsigned int m, unsigned int k, unsigned int n, unsigned int lda, unsigned int ldb, unsigned int ldc, unsigned int ldx, int postScale, int postShift) {
+    virtual bool AddGEMMOp(const HType & A, const HType & B, const HType &C, const HType & bias, unsigned int m, unsigned int k, unsigned int n, unsigned int lda, unsigned int ldb, unsigned int ldc, unsigned int ldx, int postScale, int postShift) {
         XTimer t;
         if (_hostMat.find(A) == _hostMat.end()
                 || _hostMat.find(B) == _hostMat.end()
@@ -672,7 +680,7 @@ public:
             cerr << "Matrix not found!" << endl;
             return false;
         }
-  unsigned long long A_off = 0, B_off = 0, C_off = 0, X_off = 0;
+        unsigned long long A_off = 0, B_off = 0, C_off = 0, X_off = 0;
 
         xclGetMemObjDeviceAddress(_devHandle[A].get(),
                 boost::compute::system::default_device().get(),
@@ -726,54 +734,12 @@ public:
             _hostMat[handle] = mat_ptr;
             _hostMatSz[handle] = buf_sz;
             _devHandle.erase(handle);
-            cout << "Erasing devhandle!" << endl;
+            //cout << "Erasing devhandle!" << endl;
             return true;
         }
         //cout << "Matrix " << handle << " already added!" << endl;
         return false;
     }
-
-    /*
-    bool AddMat(const HType & handle, short *p_Addr, unsigned int p_Rows,
-            unsigned int p_Cols, unsigned int p_Ld) {
-        return AddMat(handle,
-                shared_ptr<ShortMat>(
-                        new ShortMat(p_Rows, p_Cols, p_Ld, p_Addr)));
-    }
-
-    bool AddMat(const HType & handle, int *p_Addr, unsigned int p_Rows,
-            unsigned int p_Cols, unsigned int p_Ld) {
-        return AddMat(handle,
-                shared_ptr<IntMat>(
-                        new IntMat(p_Rows, p_Cols, p_Ld, p_Addr)));
-    }
-     */
-
-
-    /*
-    shared_ptr<BaseMat> AllocMat(const HType & handle, size_t n_rows,
-            size_t n_cols, size_t ld, bool sendToFPGA = false, bool sync_send =
-                    false) {
-        if (_hostMat.find(handle) != _hostMat.end()) {
-            cout << "Matrix " << handle << " already created!" << endl;
-            return _hostMat[handle];
-        }
-        cout << "Matrix " << handle << " " << n_rows << " " << n_cols << " "
-                << ld << endl;
-        void* aligned_buffer = nullptr;
-        // assert ( !posix_memalign ( &aligned_buffer, PAGE_SIZE, sizeof(T) * n_rows * n_cols ));
-        assert(
-                !posix_memalign(&aligned_buffer, PAGE_SIZE,
-     * n_rows * ld));
-        shared_ptr<Mat<DType> > mat_ptr = shared_ptr<Mat<DType> >(
-                new Mat<DType>(n_rows, n_cols, ld, (DType*) aligned_buffer));
-        assert(AddMat(handle, mat_ptr));
-
-        if (sendToFPGA)
-            SendToFPGA(handle, sync_send);
-        return mat_ptr;
-    }
-     */
 
     void * GetMat(const HType & handle,
             bool queryFPGA = false, bool sync_get = true) {
@@ -782,17 +748,14 @@ public:
             if (queryFPGA)
                 GetFromFPGA(handle, sync_get);
             ret_ptr = _hostMat[handle];
-        } else{
-            cout << "GetMat: Matrix not found!" << endl;
-            assert(0);
         }
         return ret_ptr;
     }
 
-    void Execute() {
+    void Execute( bool sync_exec = true) {
         XTimer t;
         _fpga->copyToFpga(_cl_instr_buf, false);
-        _fpga->execKernel(_cl_instr_buf);
+        _fpga->execKernel(_cl_instr_buf, sync_exec);
         memset(_instrBuf.get(), 0, PAGE_SIZE);
         _instr_offset = 0;
 #ifdef GEMX_PERF_DBG
@@ -803,15 +766,6 @@ public:
     void Wait(){
         _fpga->wait();
     }
-
-    /*
-    void SendToFPGA(const HType & handle, int * p_addr, int n_row, int n_col,
-            int ld, bool sync_send = false) {
-        SendToFPGA(handle,
-                shared_ptr<Mat >(
-                        new Mat<DType>(n_row, n_col, ld, p_addr)), sync_send);
-    }
-     */
 
     void SendToFPGA(const HType & handle, void * mat_ptr, unsigned long long buf_sz,
             bool sync_send = false) {
@@ -841,6 +795,34 @@ public:
 #ifdef GEMX_PERF_DBG
         cout << "GetFromFPGA: " << t.elapsed() << endl;
 #endif
+    }
+    
+    int getBoardFreqMHz(unsigned int p_BoardId) {
+      string l_freqCmd = "$XILINX_OPENCL/runtime/bin/xbsak query -d" + to_string(p_BoardId);;
+      float l_freq = -1;
+      char l_lineBuf[256];
+      shared_ptr<FILE> l_pipe(popen(l_freqCmd.c_str(), "r"), pclose);
+      if (!l_pipe) cout << ("ERROR: popen(" + l_freqCmd + ") failed");
+      bool l_nextLine_isFreq = false;
+      while (l_pipe && fgets(l_lineBuf, 256, l_pipe.get()) ) {
+	  string l_line(l_lineBuf);
+	  if (l_nextLine_isFreq) {
+	      string l_prefix, l_val, l_mhz;
+	      stringstream l_ss(l_line);
+	      l_ss >> l_prefix >> l_val >> l_mhz;
+	      l_freq = stof(l_val);
+	      assert(l_mhz == "MHz");
+	      break;
+	  } else if (l_line.find("OCL Frequency:") != string::npos) {
+	      l_nextLine_isFreq = true;
+	  }
+      }
+      if (l_freq == -1) {
+	  //if xbsak does not work, as happens on F1, put the XOCC achieved kernel frequcy here
+	  l_freq = -1;
+	  cout << "INFO: Failed to get board frequency by xbsak. This is normal for cpu and hw emulation, using -1 MHz for reporting.\n";
+      }
+      return((int)l_freq);
     }
 
 protected:
@@ -874,16 +856,25 @@ public:
     FCNHost() = delete;
     virtual ~FCNHost(){}
     FCNHost ( const FCNHost<HType>&) = delete;
-    FCNHost(const string & xclbin, const string & kernelName ) : GEMMHost<HType> ( xclbin, kernelName)
+    FCNHost(const string & xclbin, const string & kernelName, const string & device ) : GEMMHost<HType> ( xclbin, kernelName, device)
             {
             }
 
-    bool AddFCNOp ( const HType & A, const HType & B, const HType &C, const HType & bias, unsigned int m, unsigned int k, unsigned int n, int postScale, int postShift, short PReLUScale, short PReLUAlpha)
+    virtual bool AddGEMMOp(const HType & A, const HType & B, const HType &C, const HType & bias, unsigned int m, unsigned int k, unsigned int n, int postScale, int postShift)
+    {
+        return AddFCNOp (A, B, C, bias, m, k, n, k, n, n, n, postScale, postShift, 1, 0);
+    }
+
+    virtual bool AddGEMMOp(const HType & A, const HType & B, const HType &C, const HType & bias, unsigned int m, unsigned int k, unsigned int n, unsigned int lda, unsigned int ldb, unsigned int ldc, unsigned int ldx, int postScale, int postShift) {
+        return AddFCNOp (A, B, C, bias, m, k, n, k, n, n, n, postScale, postShift, 1, 0);
+    }
+
+    virtual bool AddFCNOp ( const HType & A, const HType & B, const HType &C, const HType & bias, unsigned int m, unsigned int k, unsigned int n, int postScale, int postShift, short PReLUScale, short PReLUAlpha)
     {
         return AddFCNOp ( A, B, C, bias, m, k, n, k, n, n, n,postScale, postShift, PReLUScale, PReLUAlpha);
     }
 
-    bool AddFCNOp ( const HType & A, const HType & B, const HType &C, const HType & bias, unsigned int m, unsigned int k, unsigned int n, unsigned int lda, unsigned int ldb, unsigned int ldc, unsigned int ldx, int postScale, int postShift, short PReLUScale, short PReLUAlpha)
+    virtual bool AddFCNOp ( const HType & A, const HType & B, const HType &C, const HType & bias, unsigned int m, unsigned int k, unsigned int n, unsigned int lda, unsigned int ldb, unsigned int ldc, unsigned int ldx, int postScale, int postShift, short PReLUScale, short PReLUAlpha)
     {
         XTimer t;
         if (this->_hostMat.find(A) == this->_hostMat.end()
@@ -894,62 +885,6 @@ public:
             return false;
         }
 
-        if ( m < MIN_M ){
-            cerr << "m dimension (" << m << ") is less than minimum supported size " << MIN_M << endl;
-            return false;
-        }
-        if ( !isPowerOf2(m) ){
-            cerr << "m dimension (" << m << ") isn't a power of 2" << endl;
-            return false;
-        }
-
-        if ( k < MIN_K ){
-            cerr << "k dimension (" << k << ") is less than minimum supported size " << MIN_K << endl;
-            return false;
-        }
-
-        if ( !isPowerOf2(k) ){
-            cerr << "k dimension (" << k << ") isn't a power of 2" << endl;
-            return false;
-        }
-
-        if ( n < MIN_N ){
-            cerr << "n dimension (" << n << ") is less than minimum supported size " << MIN_N << endl;
-            return false;
-        }
-        if ( !isPowerOf2(n) ){
-            cerr << "n dimension (" << n << ") isn't a power of 2" << endl;
-            return false;
-        }
-        if ( lda < MIN_M ){
-            cerr << "lda dimension (" << lda << ") is less than minimum supported size " << MIN_M << endl;
-            return false;
-        }
-        if ( !isPowerOf2(lda) ){
-            cerr << "lda dimension (" << lda << ") isn't a power of 2" << endl;
-            return false;
-        }
-        if ( ldb < MIN_N ){
-            cerr << "ldb dimension (" << ldb << ") is less than minimum supported size " << MIN_N << endl;
-            return false;
-        }
-
-        if ( !isPowerOf2(ldb) ){
-            cerr << "ldb dimension (" << ldb << ") isn't a power of 2" << endl;
-            return false;
-        }
-
-        if ( ldc < MIN_N ){
-            cerr << "ldc dimension (" << ldc << ") is less than minimum supported size " << MIN_N << endl;
-            return false;
-        }
-
-        if ( !isPowerOf2(ldc) ){
-            cerr << "ldc dimension (" << ldc << ") isn't a power of 2" << endl;
-            return false;
-        }
-
-        //if ( ldx != ldc )
         unsigned long long A_off = 0, B_off = 0, C_off = 0, X_off = 0;
 
         xclGetMemObjDeviceAddress(this->_devHandle[A].get(),
@@ -998,9 +933,9 @@ public:
     }
 
 protected:
-    const int MIN_M = 256;
-    const int MIN_K = 256;
-    const int MIN_N = 32;
+    //const int MIN_M = 256;
+    //const int MIN_K = 256;
+    //const int MIN_N = 32;
 
     bool isPowerOf2( int n )
     {
@@ -1014,40 +949,26 @@ protected:
 // namespace
 
 extern "C" {
-gemx::FCNHost<short*> * MakeFCNHost(char *xclbin, char * kernName);
-void DestroyFCNHost(gemx::FCNHost<short*> * ptr);
 
-void SendToFPGAShrt(gemx::FCNHost<short*> * gh, short *A,  unsigned long long num_elem, bool sync_send);
-void SendToFPGAInt(gemx::FCNHost<short*> * gh, int *A,  unsigned long long num_elem, bool sync_send);
-void SendToFPGAShrt_dbg(gemx::FCNHost<short*> * gh, char * name, short *A, int m, int n, bool sync_send);
-void SendToFPGAInt_dbg(gemx::FCNHost<short*> * gh, char * name, int *A, int m, int n, bool sync_send);
+void MakeFCNHost(char *xclbin, char * kernName, char* device);
+void MakeGEMMHost(char *xclbin, char * kernName, char* device);
 
-void SendToFPGA(gemx::FCNHost<short*> * gh, void * A, unsigned long long buf_sz, bool sync_send);
+void SendToFPGAShrt(short *A,  unsigned long long num_elem, bool sync_send);
+void SendToFPGAInt(int *A,  unsigned long long num_elem, bool sync_send);
+//void SendToFPGAShrt_dbg( char * name, short *A, int m, int n, bool sync_send);
+//void SendToFPGAInt_dbg( char * name, int *A, int m, int n, bool sync_send);
 
-void* GetFromFPGA(gemx::FCNHost<short*> * gh, short *A, bool sync_get);
+void* GetFromFPGA( short *A, bool sync_get);
 
-void Wait ( gemx::FCNHost<short*> * gh );
-bool AddFCNOp(gemx::FCNHost<short*> * gh, void * A, void * B, void *C, void * bias,  unsigned int m, unsigned int k, unsigned int n, int postScale, int postShift, short PReLUScale, short PReLUAlpha );
-void Execute (gemx::FCNHost<short*> * gh);
+void Wait ();
+void PrintStats();
+bool AddFCNOp( void * A, void * B, void *C, void * bias,  unsigned int m, unsigned int k, unsigned int n, int postScale, int postShift, short PReLUScale, short PReLUAlpha );
+bool AddGEMMOp( void * A, void * B, void *C, void * bias,  unsigned int m, unsigned int k, unsigned int n, int postScale, int postShift);
 
-gemx::GEMMHost<short*> * MakeGEMMHost(char *xclbin, char * kernName);
-void DestroyGEMMHost(gemx::GEMMHost<short*> * ptr);
+int GetFreq ();
+void Execute (bool sync_exec);
 
-void SendToFPGAShrt_GEMM(gemx::GEMMHost<short*> * gh, short *A,  unsigned long long num_elem, bool sync_send);
-void SendToFPGAInt_GEMM(gemx::GEMMHost<short*> * gh, int *A,  unsigned long long num_elem, bool sync_send);
-void SendToFPGAShrt_dbg_GEMM(gemx::GEMMHost<short*> * gh, char * name, short *A, int m, int n, bool sync_send);
-void SendToFPGAInt_dbg_GEMM(gemx::GEMMHost<short*> * gh, char * name, int *A, int m, int n, bool sync_send);
-
-void SendToFPGA_GEMM(gemx::GEMMHost<short*> * gh, void * A, unsigned long long buf_sz, bool sync_send);
-
-void* GetFromFPGA_GEMM(gemx::GEMMHost<short*> * gh, short *A, bool sync_get);
-
-void Wait_GEMM ( gemx::GEMMHost<short*> * gh );
-//void AddGEMMOp(gemx::FCNHost<short*> * gh, void * A, void * B, void *C,  unsigned int m, unsigned int k, unsigned int n);
-
-bool AddGEMMOp(gemx::GEMMHost<short*> * gh, void * A, void * B, void *C, void * bias,  unsigned int m, unsigned int k, unsigned int n, int postScale, int postShift);
-
-void Execute_GEMM (gemx::GEMMHost<short*> * gh);
+void int16_gemm(short * A, short * B, short * X, short *C, unsigned int M, unsigned int K, unsigned int N );
 }
 
 #endif /* SRC_GEMX_HOST_H_ */

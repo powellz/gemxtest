@@ -1,0 +1,8 @@
+#!/bin/bash
+export LD_LIBRARY_PATH=/opt/boost/lib:/opt/sdx_runtime/runtime/lib/x86_64:/opt/sdx_runtime/opencv:$LD_LIBRARY_PATH
+
+
+  /opt/gemx/out_host/gemx_api_gemm.exe /opt/gemx/xclbins/gemm_perf_vcu1525.xclbin 512 512 512 512 512 512 512 1 0 A B C X
+  /opt/gemx/out_host/gemx_api_spmv.exe /opt/gemx/xclbins/spmv_perf_vcu1525.xclbin 0 0 0 /opt/gemx/data/spmv/Rucci1.mtx.gz 
+#python /opt/gemx/src/python/test_gemm.py --xclbin /opt/gemx/xclbins/gemm_perf_vcu1525.xclbin --gemxlib /opt/gemx/out_host/lib/libgemxhost.so 
+exit
