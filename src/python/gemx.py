@@ -133,6 +133,6 @@ def processCommandLine():
   parser = argparse.ArgumentParser(description='GEMX')
   parser.add_argument('--xclbin', required = True, help='file path to FPGA bitstream')
   parser.add_argument('--gemxlib', required = True, help='file path to GEMX host code shared library')
-  parser.add_argument('--device', required=True, choices=['ku115','kcu1500','vu9p', 'vu9pf1'], help='supported FPGA devices')
+  parser.add_argument('--device', required=True, choices=['ku115','kcu1500','vu9p', 'vcu1525', 'vu9pf1'], help='supported FPGA devices')
   return parser
 

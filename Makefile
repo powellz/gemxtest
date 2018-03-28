@@ -353,7 +353,7 @@ APP_OUT_TXT  = ${OUT_DIR}/app_out.txt
 MAKE_EXIT_OK_HW_FILE = out_hw/gemx.xclbin
 
 #python binding for GEMX host code
-GEMX_HOST_SRC = gemx_host.cpp
+GEMX_HOST_SRC = gemx_host_c_api.cpp
 GEMX_HOST_LIB = ${OUT_HOST_DIR}/lib/libgemxhost.so
 GEMX_HOST_OBJS = $(addprefix ${OUT_HOST_DIR}/objs/,$(addsuffix .o,$(basename $(GEMX_HOST_SRC))))
 GEMX_HOST_INCLUDE = -I . -I $(BOOST_SRC) -I ./src -I$(XILINX_SDX)/runtime/include/1_2
