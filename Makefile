@@ -384,6 +384,8 @@ all: gemx_func_test
 
 host_lib: ${GEMX_HOST_LIB}
 	@echo Done
+clean_host: 	
+	rm -rf ${OUT_HOST_DIR}
 	
 gemm_perf: ${API_GEMM_EXE}
 	+make SDA_FLOW=hw run_hw_int  2>&1 | tee log-run_hw.txt; test -f ${MAKE_EXIT_OK_HW_FILE}
@@ -449,7 +451,7 @@ api_gemm : ${API_GEMM_EXE}
 
 ${GEMX_HOST_OBJS} : ./src/* | ${OUT_HOST_DIR}
 	@echo "**** Compile host binding for Python ****"
-	${CC} $(GEMX_HOST_INCLUDE) $(GEMX_HOST_CFLAGS) $(GEMX_HOST_LFLAGS) -c ./src/python/${GEMX_HOST_SRC} -o $@ 
+	${CC} $(GEMX_HOST_INCLUDE) $(GEMX_HOST_CFLAGS) $(GEMX_HOST_LFLAGS) -c ./src/host/${GEMX_HOST_SRC} -o $@ 
 
 ${GEMX_HOST_LIB} : ${GEMX_HOST_OBJS}
 	@echo "**** Create libgemxhost.so for Python ****"
