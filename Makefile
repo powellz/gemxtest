@@ -357,10 +357,9 @@ GEMX_HOST_SRC = gemx_host_c_api.cpp
 GEMX_HOST_LIB = ${OUT_HOST_DIR}/lib/libgemxhost.so
 GEMX_HOST_OBJS = $(addprefix ${OUT_HOST_DIR}/objs/,$(addsuffix .o,$(basename $(GEMX_HOST_SRC))))
 GEMX_HOST_INCLUDE = -I . -I $(BOOST_SRC) -I ./src -I$(XILINX_SDX)/runtime/include/1_2
-GEMX_HOST_CFLAGS = -O2 -std=c++11 -fPIC \
-									-DBOOST_COMPUTE_HAVE_THREAD_LOCAL -DCL_USE_DEPRECATED_OPENCL_1_1_APIS -DBOOST_COMPUTE_THREAD_SAFE\
-									-D GEMX_fpgaDdrBanks=${GEMX_fpgaDdrBanks} \
-									-Wno-ignored-attributes
+GEMX_HOST_CFLAGS = -O3 -std=c++11 -fPIC \
+		        	-DBOOST_COMPUTE_HAVE_THREAD_LOCAL -DCL_USE_DEPRECATED_OPENCL_1_1_APIS -DBOOST_COMPUTE_THREAD_SAFE\
+					-Wno-ignored-attributes
 
 GEMX_HOST_LFLAGS = -L$(BOOST_LIB) -L$(XOPENCL_LIB_PATH) -lz -lxilinxopencl -lstdc++ -lrt -pthread
 
@@ -383,6 +382,9 @@ endif
 #all: host run_cpu_em run_hw_em run_hw
 all: gemx_func_test
 
+host_lib: ${GEMX_HOST_LIB}
+	@echo Done
+	
 gemm_perf: ${API_GEMM_EXE}
 	+make SDA_FLOW=hw run_hw_int  2>&1 | tee log-run_hw.txt; test -f ${MAKE_EXIT_OK_HW_FILE}
 					
