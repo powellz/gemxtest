@@ -1,0 +1,121 @@
+#!/bin/bash
+
+for i in {1..5}; do
+	echo ""
+done
+
+echo "Usage:"
+echo "	enter the application name (gemm_perf, spmv_perf or gemm_test_python) to the GENERAL -> Application parameter."
+echo "	if the application name is \"gemm_perf\", then enter matrix dimension sizes M, K, N to OPTIONAL -> Arguments;"
+echo "	if the application name is \"spmv_perf\", then enter sparse matrix file name, e.g. /opt/gemx/data/spmv/Rucci1.mtx.gz, to OPTIONAL -> Arguments; you can also enter you own sparst matrix file name."
+echo "	if the application name is \"gemm_test_python\", no more informaiton is needed."
+
+if [ -n "$1" ]; then
+	case "$1" in
+	"gemm_perf")
+		arr=($2)	
+		M=${arr[0]}
+		K=${arr[1]}
+		N=${arr[2]}
+		if [ -z "$M" ] || [ $M -lt 128 ] || [ `expr $M % 128` -ne 0 ]; then
+			echo "ERROR: $M should be multiple of 128"
+			exit 1
+		fi
+		if [ -z "$K" ] || [ $K -lt 128 ] || [ `expr $K % 128` -ne 0 ]; then
+			echo "ERROR: $K should be multiple of 128"
+			exit 1
+		fi
+		if [ -z "$N" ] || [ $N -lt 128 ] || [ `expr $N % 128` -ne 0 ]; then
+			echo "ERROR: $N should be multiple of 128"
+			exit 1
+		fi
+		echo "** Running gemm performance test"
+		echo "** Gemm operation: C($M x $N) = A($M x $K) * B($K x $N) + X($M x $N)"
+		PROGRAM="/opt/gemx/out_host/gemx_api_gemm.exe /opt/gemx/xclbins/gemm_perf_vcu1525.xclbin $M $N $K $K $N $N $N 1 0 A B C X"
+		;;
+	"spmv_perf")
+		spm_file=$2
+		if [ ! -f "$spm_file" ]; then
+			echo "ERROR: sparse matrix file $spm_file not found"
+			exit 1
+		fi
+		echo "** Running spmv performance test with sparse matrix file $spm_file"
+		PROGRAM="/opt/gemx/out_host/gemx_api_spmv.exe /opt/gemx/xclbins/spmv_perf_vcu1525.xclbin 0 0 0 $spm_file"
+		;;
+	"gemm_test_python")
+		echo "** Running gemm functionality tests with Python function calls"
+		PROGRAM="python /opt/gemx/src/python/test_gemm.py --xclbin /opt/gemx/xclbins/gemm_python_vcu1525.xclbin --gemxlib /opt/gemx/out_host/lib/libgemxhost.so --device vu9p"
+		;;
+	*)
+		break
+	esac
+fi	
+
+echo "program to run is:"
+echo $PROGRAM
+pre_msg() {
+	echo "ERROR: "
+	echo "   This node failed it's pre-validation script"
+	echo "   Please send an email to support@nimbix.net"
+	echo "   and provide the Job Number."
+	
+	echo "---"
+	cat /tmp/output.log
+	echo "---"
+	rm /tmp/output.log
+
+	exit 1
+}
+
+post_msg() {
+	echo "ERROR:"
+	echo "  This node faied it's post-validation script. This"
+	echo "  indicates that the board was left in an invalid"
+	echo "  state after the execution of your application."
+	echo "  To remedy the issue, please contact support@nimbix.net"
+	echo "  with the Job Number and any additional information"
+	echo "  For futher support, please create a new topic on the"
+	echo "  SDAccel forums."
+
+	echo "---"
+	cat /tmp/output.log
+	echo "---"
+	rm /tmp/output.log
+
+	exit 1
+}
+
+validate() {
+	if [ -f SKIPPREPOST ]; then
+		return 0
+	fi
+
+	pushd . > /dev/null 2>&1
+	TMPDIR=$(mktemp -d)
+	cd ${TMPDIR}
+	cp -r /opt/sdx_runtime/test/{vadd,xclbin} .
+	timeout 30s ./vadd > /tmp/output.log 2>&1
+	rc=$?
+	popd > /dev/null 2>&1
+	rm -rf ${TMPDIR}
+
+	return $rc
+}
+
+export LD_LIBRARY_PATH=/opt/boost/lib:/opt/sdx_runtime/runtime/lib/x86_64:/opt/sdx_runtime/opencv:$LD_LIBRARY_PATH
+export XILINX_OPENCL=/opt/sdx_runtime
+
+validate || pre_msg
+
+echo ""
+echo "**********************"
+echo ""
+set -x
+$PROGRAM 
+rc=$?
+set +x
+echo ""
+echo "**********************"
+validate || post_msg
+
+exit $rc
