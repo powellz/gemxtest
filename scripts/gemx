@@ -1,14 +1,28 @@
 #!/bin/bash
 
-for i in {1..5}; do
-	echo ""
-done
-
-echo "Usage:"
-echo "	enter the application name (gemm_perf, spmv_perf or gemm_test_python) to the GENERAL -> Application parameter."
-echo "	if the application name is \"gemm_perf\", then enter matrix dimension sizes M, K, N to OPTIONAL -> Arguments;"
-echo "	if the application name is \"spmv_perf\", then enter sparse matrix file name, e.g. /opt/gemx/data/spmv/Rucci1.mtx.gz, to OPTIONAL -> Arguments; you can also enter you own sparst matrix file name."
-echo "	if the application name is \"gemm_test_python\", no more informaiton is needed."
+echo ""
+echo "Instructions:"
+echo "	gemx <Application> [Arguments]"
+echo "	: In batch window, put <Application> to \"GENERAL -> Application\" field. There are three commands supported: gemm_perf, spmv_perf and gemm_test_python."
+echo "	: In batch window, put [Arguments] to \"OPTIONAL -> Arguments\" field. It contains the dimension sizes for gemm_perf application, or sparse matrix file name for spmv_perf application."
+echo ""
+echo "Example:"
+echo "	# Run gemm_perf application to measure the FPGA GEMM performance. The GEMM operation performed on FPGA is C = A * B + X."
+echo "	# Where the dimension sizes for matrix A, B, C and X are M x K; K x N; M x N and M x N. In this example, M=512, K=128 and N=256."
+echo "	# gemx gemm_perf 512 128 256"
+echo "	Application: gemm_perf"
+echo "	Option: 512 128 256"
+echo ""
+echo "	# Run spmv_perf application to measure the FPGA SPMV performance. The SPMV operation performed on FPGA is C += A * B."
+echo "	# Where A is a sparse matrix and B is a dense vector. In this example, sparse matrix A comes from file /opt/gemx/data/spmv/Rucci1.mtx.gz."
+echo "	# gemx spmv_perf /opt/gemx/data/spmv/Rucci1.mtx.gz"
+echo "	Application: spmv_perf"
+echo "	Option: /opt/gemx/data/spmv/Rucci1.mtx.gz"
+echo ""
+echo "	# Run gemm_test_python application to lauch the FPGA GEMM operation from Python code and verify the functionality."
+echo "	# gemx gemm_test_python"
+echo "	Application: gemm_test_python"
+echo ""
 
 if [ -n "$1" ]; then
 	case "$1" in
@@ -31,7 +45,7 @@ if [ -n "$1" ]; then
 		fi
 		echo "** Running gemm performance test"
 		echo "** Gemm operation: C($M x $N) = A($M x $K) * B($K x $N) + X($M x $N)"
-		PROGRAM="/opt/gemx/out_host/gemx_api_gemm.exe /opt/gemx/xclbins/gemm_perf_vcu1525.xclbin $M $N $K $K $N $N $N 1 0 A B C X"
+		PROGRAM="/opt/gemx/out_host/gemx_api_gemm.exe /opt/gemx/xclbins/gemm_perf_vcu1525.xclbin $M $K $N $K $N $N $N 1 0 A B C X"
 		;;
 	"spmv_perf")
 		spm_file=$2
