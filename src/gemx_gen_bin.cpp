@@ -42,7 +42,7 @@
 #include <vector>
 
 #include <mm_malloc.h>
-#include "gemx_gen_bin_uram.h"
+#include "gemx_gen_bin.h"
 
 
 

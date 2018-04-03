@@ -53,6 +53,12 @@ GEMX_spmvPadA       		= 1
 GEMX_spmvNumCblocks 		= 1024
 GEMX_spmvFloatPerDesc 	= 4
 
+#spmv definitions used for URAM-based SPMV implementation
+GEMX_idxType 		= int32_t
+GEMX_nnzBlocks 		= 8
+GEMX_spmvKmaxBlocks 	= 32768 
+GEMX_spmvMmaxBlocks 	= 5462 
+GEMX_spmvUramGroups 	= 6 
 # Correlated for IdxBits 2 => row idx < 2**14 so blocks 10 (2**14 / ddrw / spmvw / groups
 GEMX_spmvColAddIdxBits  = 2
 
@@ -162,6 +168,7 @@ KERNEL_SRCS = src/gemx_kernel.cpp
 GMEM_FLAGS = -D GMEM_M=$(GMEM0_M) 
 
 CFLAGS_K = $(GMEM_FLAGS) -I ./src \
+	   -I ./src/python \
           -D TEST_SDX=1 \
           -D GEMX_dataType=$(GEMX_dataType) \
           -D GEMX_XdataType=$(GEMX_XdataType) \
@@ -186,8 +193,14 @@ CFLAGS_K = $(GMEM_FLAGS) -I ./src \
           -D GEMX_spmvPadA=$(GEMX_spmvPadA) \
           -D GEMX_spmvNumCblocks=$(GEMX_spmvNumCblocks) \
           -D GEMX_spmvFloatPerDesc=$(GEMX_spmvFloatPerDesc) \
+           -D GEMX_idxType=${GEMX_idxType} \
+           -D GEMX_nnzBlocks=${GEMX_nnzBlocks} \
+           -D GEMX_spmvKmaxBlocks=${GEMX_spmvKmaxBlocks} \
+           -D GEMX_spmvMmaxBlocks=${GEMX_spmvMmaxBlocks} \
+           -D GEMX_spmvUramGroups=${GEMX_spmvUramGroups} \
           -D GEMX_argPipeline=$(GEMX_argPipeline) \
           -D GEMX_part=$(GEMX_part) \
+           -D GEMX_useURAM=${GEMX_useURAM} \
 	  			-D GEMX_splitMesh=${GEMX_splitMesh} \
 	  			-D GEMX_runGemv=$(GEMX_runGemv) \
 	  			-D GEMX_runGemm=$(GEMX_runGemm) \
@@ -359,6 +372,7 @@ GEMX_HOST_OBJS = $(addprefix ${OUT_HOST_DIR}/objs/,$(addsuffix .o,$(basename $(G
 GEMX_HOST_INCLUDE = -I . -I $(BOOST_SRC) -I ./src -I$(XILINX_SDX)/runtime/include/1_2
 GEMX_HOST_CFLAGS = -O3 -std=c++11 -fPIC \
 		        	-DBOOST_COMPUTE_HAVE_THREAD_LOCAL -DCL_USE_DEPRECATED_OPENCL_1_1_APIS -DBOOST_COMPUTE_THREAD_SAFE\
+		   -D GEMX_fpgaDdrBanks=${GEMX_fpgaDdrBanks} \
 					-Wno-ignored-attributes
 
 GEMX_HOST_LFLAGS = -L$(BOOST_LIB) -L$(XOPENCL_LIB_PATH) -lz -lxilinxopencl -lstdc++ -lrt -pthread
