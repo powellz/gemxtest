@@ -69,9 +69,7 @@ class GEMXManager:
     elif A.dtype == np.int16:
         self._lib.SendToFPGAShrt( A, c_ulonglong(A.size),  sync_send )        
     else:
-        print ("sendMat: ", A.dtype, " type not supported")
-        sys.exit()
-    #ctypes.data_as(POINTER(c_float))
+        raise TypeError("type", A, "not supported")
     
   def getMat(self, A, sync_get = True):
     self._lib.GetFromFPGA( A, sync_get )
@@ -129,10 +127,44 @@ def printStats():
 def getFreq():
   return _gemxManager.getFreq()
 
+def create_buf ( q_wt, inp_shape):
+    fpga_buf = []
+    buf_shape = inp_shape
+    fpga_buf.append ( create_fpga_buf( buf_shape, q_wt[0].dtype ) )
+    for w in q_wt:
+        buf_shape = ( buf_shape[0], w.shape[1] )
+        fpga_buf.append ( create_fpga_buf( buf_shape, w.dtype ) )
+    
+    return fpga_buf
+    
+def create_fpga_buf ( shape, np_type ):
+    a = np.zeros ( shape, dtype=np_type, order='C')
+    _gemxManager.sendMat(a)
+    return a
+
+def load_buf ( np_list):
+    for b in np_list:
+        _gemxManager.sendMat(b)
+
+def predict ( w, b, activations, fpga_buf, inp, post_scale):
+    np.copyto(fpga_buf[0],inp, casting='same_kind', where=True)
+    _gemxManager.sendMat(fpga_buf[0])
+    for i,iw in enumerate(w):
+        if activations[i] == 'relu':
+            _gemxManager.addFCNOp( fpga_buf[i], iw, fpga_buf[i+1], b[i], post_scale[i][0], post_scale[i][1], 0, 0)
+        else:
+            _gemxManager.addGEMMOp( fpga_buf[i], iw, fpga_buf[i+1], b[i], post_scale[i][0], post_scale[i][1])
+             
+
+    _gemxManager.execute()
+    _gemxManager.getMat (fpga_buf[-1])
+    return fpga_buf[-1]
+        
 def processCommandLine():
   parser = argparse.ArgumentParser(description='GEMX')
   parser.add_argument('--xclbin', required = True, help='file path to FPGA bitstream')
   parser.add_argument('--gemxlib', required = True, help='file path to GEMX host code shared library')
   parser.add_argument('--device', required=True, choices=['ku115','kcu1500','vu9p', 'vcu1525', 'vu9pf1'], help='supported FPGA devices')
+  parser.add_argument('-k', '--kernelName', default="gemxKernel_0", help='FPGA kernel name')  
   return parser
 
