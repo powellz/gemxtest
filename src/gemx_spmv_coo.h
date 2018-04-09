@@ -315,7 +315,6 @@ class SpmvCoo
 				if (p_inCntS.read_nb(l_unused)) {
 					l_preDone = true;
 				}
-				//l_activity.Reset();
 
 				for (int b = 0; b < t_NumUramPerDdr; ++b) {
 					#pragma HLS UNROLL
@@ -323,9 +322,11 @@ class SpmvCoo
 					unsigned int l_idx = 0;
 					for (int w = 0; w < t_NumUramPerDdr; ++w) {
 						#pragma HLS UNROLL
-						unsigned int l_word = (b + w + l_idIncr) % t_NumUramPerDdr;
-						if (!p_inS[l_word][b].empty()) {
-							l_idx = l_word;
+						//unsigned int l_word = (b + w + l_idIncr) % t_NumUramPerDdr;
+						//if (!p_inS[l_word][b].empty()) {
+						if (!p_inS[w][b].empty()) {
+							//l_idx = l_word;
+							l_idx = w;
 							break;
 						}
 					}
@@ -339,7 +340,7 @@ class SpmvCoo
 						l_activity[b] = false;
 					}
 				}
-				l_idIncr = (l_idIncr+1) % t_NumUramPerDdr;			
+				//l_idIncr = (l_idIncr+1) % t_NumUramPerDdr;			
 			}
 
 			for (int b = 0; b < t_NumUramPerDdr; ++b) {
@@ -539,9 +540,11 @@ class SpmvCoo
 					#pragma HLS UNROLL
 					unsigned int l_idx = 0;
 					for (int bb = 0; bb < t_NumUramPerDdr; ++bb) {
-						unsigned int l_word = (b+bb+l_idIncr) % t_NumUramPerDdr;	
-						if (!p_inS[l_word][b].empty()){
-							l_idx = l_word;
+						//unsigned int l_word = (b+bb+l_idIncr) % t_NumUramPerDdr;	
+						//if (!p_inS[l_word][b].empty()){
+						if (!p_inS[bb][b].empty()){
+							//l_idx = l_word;
+							l_idx = bb;
 							break;
 						}
 					}
@@ -555,7 +558,7 @@ class SpmvCoo
 						l_activity[b] = false;
 					}
 				}
-				l_idIncr = (l_idIncr + 1) % t_NumUramPerDdr;
+				//l_idIncr = (l_idIncr + 1) % t_NumUramPerDdr;
 			}
 
 			for (int b = 0; b < t_NumUramPerDdr; ++b) {
@@ -780,7 +783,7 @@ class SpmvCoo
 		#pragma HLS ARRAY_PARTITION variable=l_spm2MergeColS COMPLETE dim=2
 		ControlStreamType l_cnt2MergeColS;
 		#pragma HLS DATA_PACK variable=l_cnt2MergeColS
-		#pragma HLS STREAM variable=l_cnt2MergeColS depth=t_DepthDeep
+		#pragma HLS STREAM variable=l_cnt2MergeColS depth=t_DepthShallow
 		SpmCooStreamType l_spm2extractAs[t_NumUramPerDdr];
 		#pragma HLS DATA_PACK variable=l_spm2extractAs
 		#pragma HLS STREAM variable=l_spm2extractAs depth=t_DepthShallow
@@ -840,7 +843,7 @@ class SpmvCoo
 		#pragma HLS ARRAY_PARTITION variable=l_spm2MergeRowS COMPLETE dim=2
 		ControlStreamType l_cnt2MergeRowS;
 		#pragma HLS DATA_PACK variable=l_cnt2MergeRowS
-		#pragma HLS STREAM variable=l_cnt2MergeRowS depth=t_DepthDeep
+		#pragma HLS STREAM variable=l_cnt2MergeRowS depth=t_DepthShallow
 		SpmABStreamType l_spm2multABs[t_NumUramPerDdr];
 		#pragma HLS DATA_PACK variable=l_spm2multABs
 		#pragma HLS STREAM variable=l_spm2multABs depth=t_DepthShallow
