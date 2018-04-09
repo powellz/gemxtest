@@ -146,8 +146,9 @@ def load_buf ( np_list):
     for b in np_list:
         _gemxManager.sendMat(b)
 
-def predict ( w, b, activations, fpga_buf, inp, post_scale):
-    np.copyto(fpga_buf[0],inp, casting='same_kind', where=True)
+def predict ( w, b, activations, fpga_buf, inp, in_scale, post_scale, out_dim):
+    
+    np.copyto(fpga_buf[0], np.int16( inp * in_scale ), casting='same_kind', where=True)
     _gemxManager.sendMat(fpga_buf[0])
     for i,iw in enumerate(w):
         if activations[i] == 'relu':
@@ -155,10 +156,9 @@ def predict ( w, b, activations, fpga_buf, inp, post_scale):
         else:
             _gemxManager.addGEMMOp( fpga_buf[i], iw, fpga_buf[i+1], b[i], post_scale[i][0], post_scale[i][1])
              
-
     _gemxManager.execute()
     _gemxManager.getMat (fpga_buf[-1])
-    return fpga_buf[-1]
+    return fpga_buf[-1][:out_dim[0],:out_dim[1]]
         
 def processCommandLine():
   parser = argparse.ArgumentParser(description='GEMX')

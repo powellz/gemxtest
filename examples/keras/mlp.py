@@ -62,46 +62,47 @@ def format_for_fpga ( np_list, min_row, min_col):
 
     return padded_list
     
-def predict_fpga( args, input_dim, test_data, num_classes ):
+def predict_fpga( args, test_data, num_classes ):
     import gemx
-    model = create_keras_model(input_dim, num_classes )
+    model = create_keras_model(test_data.values.shape[1], num_classes )
     model.load_weights(args.model)
-    
-    gemx.createFCNHandle( args.xclbin, args.kernelName, args.gemxlib , args.device )
+    out_dim = ( test_data.values.shape[0], model.layers[-1].output_shape[1] )
     weights = model.get_weights()[0::2]
     bias = model.get_weights()[1::2]
-    wgt_scale = [155275.3311, 121798.1115, 71553.71463]
-    post_scale = [ [1,18], [1,18] , [1,17] ]    
-
-    print ("in shape" , test_data.values.shape)
-    for w in weights:
-        print ("wgt shape" , w.shape)
         
-    for b in bias:
-        print ("bias shape", b.shape)
-                
+    #load xclbin 
+    gemx.createFCNHandle( args.xclbin, args.kernelName, args.gemxlib , args.device )
+    
+    #Quantization parameters to bring fp32 ranges to fit into int16; parameters are derived offline
+    wgt_scale = [155275.3311, 121798.1115, 71553.71463]
+    post_scale = [ [2,18], [2,18] , [2,17] ]    
     in_scale = 31.13053392
     
+    #quantize weights and bias
     w_int16 = [ np.int16(a*b) for a,b in zip(weights, wgt_scale)]
     b_int32 = [ np.int32(a*b) for a,b in zip(bias, wgt_scale)]
     
-    print ( "weights padding")
-    padded_w = format_for_fpga( w_int16, 128, 32)
-    print ( "bias padding")
-    padded_b = format_for_fpga ( b_int32, 128, 32)
+    #pad matrices to minimum dimensions as required by the FPGA kernel
+    padded_w = format_for_fpga( w_int16, 128, 128)
+    padded_b = format_for_fpga ( b_int32, 128, 128)
     padded_in = format_for_fpga ( [test_data.values], 128, 128)
-    padded_in = np.int16 ( padded_in[0] * in_scale )    
-    fpga_buf = gemx.create_buf( padded_w, padded_in.shape)
+    
+    #create intermediate buffers on FPGA    
+    fpga_buf = gemx.create_buf( padded_w, padded_in[0].shape)
+    
+    #load weights 
     gemx.load_buf( padded_w )
     gemx.load_buf( padded_b )
-    a = ['relu', 'relu', 'none']
-    result = gemx.predict( padded_w, padded_b, a, fpga_buf, padded_in, post_scale )
-    #result = np.float32(result)
-    print ("result shape", result.shape, "out", result)
-    np.savetxt("fpga_out.np", result, fmt="%f")
     
+    #activation types after each GEMM operation 
+    a = ['relu', 'relu', 'none']
+    
+    #run inference on FPGA
+    result = gemx.predict( padded_w, padded_b, a, fpga_buf, padded_in[0], in_scale, post_scale, out_dim )
+    
+    #run softmax on CPU
     for i in range(result.shape[0]):
-        result[i] = softmax(result[i,:])
+        result[i,:] = softmax(result[i,:])
         
     return result
  
@@ -120,7 +121,7 @@ def compute_dense(weight, bias, inp, scalein=1, post_scale=1):
         bias64 = np.int64(bias)#bias to 64 bits
         output64 = m64 + bias64
         
-    o64d = output64/post_scale[1]
+    o64d = output64/(2**post_scale[1])
     o64m = o64d*post_scale[0]
     output = np.int16(o64m)#scale down for 16 bits
     return output
@@ -130,11 +131,12 @@ def compute_standalone_hwemu( inp, wb ):
     wgt_scale = [155275.3311, 121798.1115, 71553.71463]
     post_scale = [ 43.88706261, 39.40462421,41.47343054 ] 
     #post_scale_hw = [ [44,4833804], [39.4,5345361] , [1, 2819547] ]    
-    post_scale_hw = [ [2,262144], [2,262144] , [2, 4194304] ]    
+    post_scale_hw = [ [2,18], [2,18] , [2, 17] ]    
 
     weights = wb[0::2]
     bias = wb[1::2]
 
+    #quantization
     w_int16 = [ np.int16(a*b) for a,b in zip(weights, wgt_scale)]
     b_int32 = [ np.int32(a*b) for a,b in zip(bias, wgt_scale)]
         
@@ -146,7 +148,8 @@ def compute_standalone_hwemu( inp, wb ):
     o2[o2 < 0] = 0
 
     o3 = compute_dense ( w_int16[2], b_int32[2], o2, in_scale[2], post_scale_hw[2])
-    print ("o3 range (", np.min(o3), ",", np.max(o3), ")")    
+
+    print ("o3 range (", np.min(o3), ",", np.max(o3), ")")
     #softmax
     for i in range(o3.shape[0]):
         o3[i,:] = softmax(o3[i,:])
@@ -158,7 +161,6 @@ def compute_standalone( inp, wb ):
         print ( "w", i, ": ", np.min(w), ", ", np.max(w))
         
     o1 = np.matmul ( inp, wb[0])
-    print ("b0 shape", wb[1].shape)
     o1 = o1 + wb[1]
     print ("o1 (", np.min(o1), ",", np.max(o1))
     o1[o1 < 0] = 0
@@ -178,7 +180,6 @@ def create_keras_model(in_dims, num_classes):
     '''
     Generate a simple Keras model.
     '''  
-    print ("input shape: ", in_dims)
     model = Sequential()
     model.add(Dense(100, input_dim=in_dims, activation='relu', name='d1'))
     model.add(Dense(25, activation='relu', name='d2'))
@@ -202,7 +203,6 @@ if  __name__ == '__main__':
         if args.xclbin is None or args.gemxlib is None:
              parser.error("FPGA execution requires --xclbin and --gemxlib")
              
-             
     train_fd = pd.read_csv(args.data) # Load training data.
     IDcol = 'Run' # A column used to identified the run for data collection; not an independent variable.
     target = 'Class' # The column name for our dependent variable.
@@ -214,16 +214,11 @@ if  __name__ == '__main__':
     encoded_Y = encoder.transform(train_fd[target])
     # Convert integers to dummy variables (i.e. one hot encoded)
     train_y = np_utils.to_categorical(encoded_Y)
-    #train ( train_fd, predictors,  train_y, len(train_fd[target].unique()))
-    #print (train_y.shape)
-    #print (train_fd[predictors].shape)
     
     hwemu_out = predict_hwemu( args.model, len(predictors), train_fd[predictors], len(train_fd[target].unique()) )
-    fpga_out = predict_fpga( args, len(predictors), train_fd[predictors], len(train_fd[target].unique()))
+    fpga_out = predict_fpga( args, train_fd[predictors], len(train_fd[target].unique()))
     #cpu_out = predict_cpu( args.model, len(predictors), train_fd[predictors], len(train_fd[target].unique()) )
       
-    #print ("FPGA OUTPUT SHAPE: ", fpga_out.shape)
-    #print ("CPU OUTPUT SHAPE: ", cpu_out.shape)    
     if np.array_equal (hwemu_out, fpga_out):
         print ("SUCCESS!!!")
     else:
