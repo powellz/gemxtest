@@ -1,0 +1,11 @@
+===================================
+Configuration Memory information
+===================================
+File Format        MCS
+Interface          SPIX8
+Size               512M
+Start Address      0x00000000
+End Address        0x1FFFFFFF
+
+Addr1         Addr2         Date                    File(s)
+0x02000000    0x02B19645    Dec  6 05:39:18 2017    /proj/XCOresults/raptor/2017.4/2017.4_1206_1/IP3_xco-raptor-test_sdaccel_2017-12-05_23-49-25/DEV/xilinx/xresults/kcu1500_dynamic_5_0/sdaccel_dsa_board_test/000_kcu1500_dynamic_5_0_DSA_build/.Xil/Vivado-18685-xcolc170165/dsa/xilinx_kcu1500_dynamic_5_0.bit
