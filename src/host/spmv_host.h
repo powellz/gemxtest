@@ -2,6 +2,7 @@
 #define _SPMV_HOST_H_
 
 #include "xhost.h"
+#include "gemm_host.h"
 
 using namespace std;
 namespace gemx {
@@ -30,6 +31,35 @@ protected:
     } m_spmv_args;
 };
 
+template<typename HType>
+class SpmvHost : public GEMMHost<HType> {
+public:
+    SpmvHost() = delete;
+    virtual ~SpmvHost(){
+    }
+
+    SpmvHost(const SpmvHost<HType> &) = delete;
+
+    SpmvHost( const string & xclbin, const string & kernelName, const string & device ) : GEMMHost<HType> ( xclbin, kernelName, device)
+    {
+    }
+
+    virtual bool AddGEMMOp(const HType & A, const HType & B, const HType &C, const HType & bias, unsigned int m, unsigned int k, unsigned int n, int postScale, int postShift) {
+        cerr << "GEMM operation not supported" << endl;
+        return false;
+    }
+
+    virtual bool AddGEMMOp(const HType & A, const HType & B, const HType &C, const HType & bias, unsigned int m, unsigned int k, unsigned int n, unsigned int lda, unsigned int ldb, unsigned int ldc, unsigned int ldx, int postScale, int postShift) {
+        cerr << "GEMM operation not supported" << endl;
+        return false;
+    }
+
+    virtual bool AddSpmvOp( )
+    {
+
+    }
+
+};
 
 }
 
