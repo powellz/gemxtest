@@ -23,8 +23,8 @@ def train(train_fd, predictors, train_data, num_classes):
     
     model.fit(train_fd[predictors], train_data, epochs=200, batch_size=50, callbacks=[modelcheckpoint_callback], validation_split=0.20, shuffle=True)
 
-def predict_hwemu ( weights, input_dim, test_data, num_classes, use_fpga = False ):
-    model = create_keras_model(input_dim, num_classes )
+def predict_hwemu ( weights, test_data, num_classes, use_fpga = False ):
+    model = create_keras_model(test_data.values.shape[1], num_classes )
     model.load_weights(weights)
     #return compute_standalone( test_data.values, model.get_weights())    
     return compute_standalone_hwemu( test_data.values, model.get_weights())
@@ -44,18 +44,14 @@ def predict_cpu ( weights, input_dim, test_data, num_classes ):
 def format_for_fpga ( np_list, min_row, min_col):
     padded_list = []
     for m in np_list:
-        row_padded = int(math.pow(2, int( math.ceil (math.log(m.shape[0], 2)) )))
-        row_padded = max (row_padded, min_row)
-        
+        row_padded = int(math.ceil ( m.shape[0] / min_row ) * min_row ) 
         if m.ndim == 1:
             m = m.reshape(m.shape[0],1)
             
         col_dim = min_col if len(m.shape) == 1 else m.shape[1]
-        col_padded = int(math.pow(2, int( math.ceil( math.log(col_dim, 2) ) )))
-        col_padded = max (col_padded, min_col)
+        col_padded = int( math.ceil( col_dim / min_col ) * min_col )
         padded_arr = np.zeros ( (row_padded, col_padded), dtype=m.dtype, order='C')
         padded_arr[0:m.shape[0], 0:col_dim] = m
-          
 #        print ("padded shape", padded_arr.shape)  
 #        print (padded_arr)            
         padded_list.append(padded_arr)
@@ -75,13 +71,16 @@ def predict_fpga( args, test_data, num_classes ):
     
     #Quantization parameters to bring fp32 ranges to fit into int16; parameters are derived offline
     wgt_scale = [155275.3311, 121798.1115, 71553.71463]
-    post_scale = [ [2,18], [2,18] , [2,17] ]    
+    post_scale = [ [5,19], [2,18] , [2,17] ]    
     in_scale = 31.13053392
     
     #quantize weights and bias
     w_int16 = [ np.int16(a*b) for a,b in zip(weights, wgt_scale)]
     b_int32 = [ np.int32(a*b) for a,b in zip(bias, wgt_scale)]
     
+    for i in w_int16:
+        print ("w shape", i.shape)
+        
     #pad matrices to minimum dimensions as required by the FPGA kernel
     padded_w = format_for_fpga( w_int16, 128, 128)
     padded_b = format_for_fpga ( b_int32, 128, 128)
@@ -99,7 +98,6 @@ def predict_fpga( args, test_data, num_classes ):
     
     #run inference on FPGA
     result = gemx.predict( padded_w, padded_b, a, fpga_buf, padded_in[0], in_scale, post_scale, out_dim )
-    
     #run softmax on CPU
     for i in range(result.shape[0]):
         result[i,:] = softmax(result[i,:])
@@ -121,7 +119,8 @@ def compute_dense(weight, bias, inp, scalein=1, post_scale=1):
         bias64 = np.int64(bias)#bias to 64 bits
         output64 = m64 + bias64
         
-    o64d = output64/(2**post_scale[1])
+    #o64d = output64/(2**post_scale[1])
+    o64d = output64/post_scale[1]
     o64m = o64d*post_scale[0]
     output = np.int16(o64m)#scale down for 16 bits
     return output
@@ -130,8 +129,8 @@ def compute_standalone_hwemu( inp, wb ):
     in_scale = [31.13053392, 1, 1]
     wgt_scale = [155275.3311, 121798.1115, 71553.71463]
     post_scale = [ 43.88706261, 39.40462421,41.47343054 ] 
-    #post_scale_hw = [ [44,4833804], [39.4,5345361] , [1, 2819547] ]    
-    post_scale_hw = [ [2,18], [2,18] , [2, 17] ]    
+    post_scale_hw = [ [44,4833804], [39.4,5345361] , [1, 2819547] ]    
+    #post_scale_hw = [ [5,19], [2,18] , [2,17] ]    
 
     weights = wb[0::2]
     bias = wb[1::2]
@@ -150,6 +149,7 @@ def compute_standalone_hwemu( inp, wb ):
     o3 = compute_dense ( w_int16[2], b_int32[2], o2, in_scale[2], post_scale_hw[2])
 
     print ("o3 range (", np.min(o3), ",", np.max(o3), ")")
+    
     #softmax
     for i in range(o3.shape[0]):
         o3[i,:] = softmax(o3[i,:])
@@ -215,13 +215,20 @@ if  __name__ == '__main__':
     # Convert integers to dummy variables (i.e. one hot encoded)
     train_y = np_utils.to_categorical(encoded_Y)
     
-    hwemu_out = predict_hwemu( args.model, len(predictors), train_fd[predictors], len(train_fd[target].unique()) )
-    fpga_out = predict_fpga( args, train_fd[predictors], len(train_fd[target].unique()))
-    #cpu_out = predict_cpu( args.model, len(predictors), train_fd[predictors], len(train_fd[target].unique()) )
+    hwemu_out = predict_hwemu( args.model,  train_fd[predictors], len(train_fd[target].unique()) )
+    #fpga_out = predict_fpga( args, train_fd[predictors], len(train_fd[target].unique()))
+    cpu_out = predict_cpu( args.model, len(predictors), train_fd[predictors], len(train_fd[target].unique()) )
       
-    if np.array_equal (hwemu_out, fpga_out):
+    if np.array_equal (cpu_out, hwemu_out):
         print ("SUCCESS!!!")
     else:
-        np.savetxt("out.np", fpga_out, fmt="%f")
-        np.savetxt("out_golden.np", hwemu_out, fmt="%f")
-        np.savetxt("diff.np", hwemu_out - fpga_out, fmt="%f")
+        diff = cpu_out - hwemu_out
+        num_diff = 0
+        for i in range (cpu_out.shape[0]):
+            if not np.array_equal(cpu_out[i,:], hwemu_out[i,:]):
+                num_diff += 1
+                
+        print ( num_diff , "/", cpu_out.shape[0], "incorrect")
+        np.savetxt("out.np", hwemu_out, fmt="%f")
+        np.savetxt("out_golden.np", cpu_out, fmt="%f")
+        np.savetxt("diff.np", cpu_out - hwemu_out, fmt="%f")
