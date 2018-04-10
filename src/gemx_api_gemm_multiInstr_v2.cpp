@@ -54,7 +54,7 @@
 #include <chrono>
 #include <stdio.h>  // fgets for popen
 
-#include "host/gemx_host.h"
+#include "host/gemm_host.h"
 
 using namespace std;
 using namespace gemx;
