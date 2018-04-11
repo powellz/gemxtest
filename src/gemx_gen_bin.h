@@ -1187,18 +1187,21 @@ class MtxFileUram
   private:
     std::string m_FileName;
     bool m_Good;
+		bool m_isDiag;
     unsigned int m_M, m_K, m_Nnz;
     std::vector<MtxRow> m_Rows;
   private:
     void align( unsigned int &dst, unsigned int width) {dst = width * ((dst + width - 1) / width);}
   public:
     bool good() {return(m_Good);}
+		bool isDiag() {return(m_isDiag);}
     unsigned int rows() {return(m_M);}
     unsigned int cols() {return(m_K);}
     unsigned int nnz() {return(m_Nnz);}
     std::string fileName() {return(m_FileName);}
     MtxFileUram(std::string p_FileName)
       : m_Good(false),
+				m_isDiag(true),
         m_M(0), m_K(0), m_Nnz(0), 
         m_FileName(p_FileName)
       {
@@ -1223,17 +1226,30 @@ class MtxFileUram
           l_bs.push(l_fs);
           
           m_Good = l_bs.good();
+					unsigned int l_curRow=0;
+					unsigned int l_curCol=0;
           if (m_Good) {
             while (l_bs.peek() == '%') l_bs.ignore(2048, '\n');
             l_bs >>  m_M >> m_K >> m_Nnz;
             for (unsigned int i = 0; i < nnz(); ++i) {
               MtxRow l_row;
               l_row.scan(l_bs);
+							if (i==0) {
+								l_curRow = l_row.getRow();
+								l_curCol = l_row.getCol();
+							}
+							else {
+								if ((l_row.getRow() != (l_curRow+1)) || (l_row.getCol() != (l_curCol+1))){
+									m_isDiag = false;
+								}
+								l_curRow = l_row.getRow();
+								l_curCol = l_row.getCol();
+							}
               m_Rows.push_back(l_row);
             }
             boost::iostreams::close(l_bs);
             // Sort to make canonical
-            sort(m_Rows.begin(), m_Rows.end());
+            //sort(m_Rows.begin(), m_Rows.end());
             // Pad with 0s
             while (m_Nnz % (GEMX_ddrWidth * GEMX_nnzBlocks) != 0) {
               std::cout << "INFO: Added padding row to the mtx data\n";
@@ -1431,6 +1447,7 @@ class SpMatUram
 	public:
 		static const unsigned int t_NumData = (sizeof(GEMX_idxType)/sizeof(GEMX_dataType))*2*GEMX_ddrWidth+GEMX_ddrWidth;
 		static const unsigned int t_NumIdx = 3 * GEMX_ddrWidth / (sizeof(GEMX_idxType)/sizeof(GEMX_dataType));
+		static const unsigned int t_NumUramPerDdr = GEMX_ddrWidth / (8/sizeof(Tdata)); 
   public:
     SpMatUram(){}
     SpMatUram(unsigned int p_Rows, unsigned int p_Cols, unsigned int p_Nnz, Tdata *p_DataAddr)
@@ -1501,6 +1518,24 @@ class SpMatUram
         getVal(i) = l_row.getVal();
 				getCol(i) = l_row.getCol();
 				getRow(i) = l_row.getRow();        
+    	}
+		}
+    
+		void
+    fillFromVectorWithReorder(std::vector<MtxRow> p_Rows) {
+    	assert(p_Rows.size() ==  nnz());
+			unsigned int i=0;
+			unsigned int l_blocks = m_Nnz / (t_NumUramPerDdr * t_NumUramPerDdr);
+      for (unsigned int c = 0; c < t_NumUramPerDdr; ++c) {
+				for (unsigned int b = 0; b < l_blocks; ++b) {
+					for (unsigned int r = 0; r < t_NumUramPerDdr; ++r) {
+						MtxRow l_row = p_Rows[i];
+						i++;
+						getVal(b*t_NumUramPerDdr*t_NumUramPerDdr+r*t_NumUramPerDdr+c) = l_row.getVal();
+						getCol(b*t_NumUramPerDdr*t_NumUramPerDdr+r*t_NumUramPerDdr+c) = l_row.getCol();
+						getRow(b*t_NumUramPerDdr*t_NumUramPerDdr+r*t_NumUramPerDdr+c) = l_row.getRow();
+					}
+				}        
     	}
 		}
 
@@ -1969,7 +2004,12 @@ class GenSpmvUram
     
     if (l_newAllocA) {
       if (p_MtxFile.good()) {
-        l_matA.fillFromVector(p_MtxFile.getRows());
+				if (p_MtxFile.isDiag()) {
+        	l_matA.fillFromVector(p_MtxFile.getRows());
+				}
+				else {
+					l_matA.fillFromVectorWithReorder(p_MtxFile.getRows());
+				}
       } else {
         l_matA.fillMod(std::numeric_limits<GEMX_dataType>::max());
       }
