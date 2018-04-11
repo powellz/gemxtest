@@ -81,8 +81,7 @@ class SpmvCoo
 
 		typedef SpmCoo<t_FloatType, t_IdxType, t_NumUramPerDdr, t_UramWidth> SpmCooType;
 		
-		typedef SpmSameCol<t_FloatType, t_IdxType, t_NumUramPerDdr, t_UramGroups, t_UramWidth, t_NumUramPerDdr> SpmSameColType;
-		typedef typename SpmSameColType::SpmColType SpmColType;
+		typedef SpmCol<t_FloatType, t_IdxType, t_NumUramPerDdr, t_InterLeaves> SpmColType;
 		typedef SpmAB<t_FloatType, t_IdxType, t_NumUramPerDdr, t_InterLeaves> SpmABType;
 		typedef WideType<SpmCooType, t_DdrWidth> SpmCooWideType;
 		typedef WideType<SpmCooType, t_NumUramPerDdr> SpmCooUramWideType;
@@ -93,7 +92,6 @@ class SpmvCoo
 		typedef hls::stream<IdxWideType> IdxWideStreamType;
 		typedef hls::stream<SpmCooWideType> SpmCooWideStreamType;
 		typedef hls::stream<SpmCooUramWideType> SpmCooUramWideStreamType;
-		typedef hls::stream<SpmSameColType> SpmSameColStreamType;
 		typedef hls::stream<SpmColType> SpmColStreamType;
 		typedef hls::stream<SpmCooType> SpmCooStreamType;
 		typedef hls::stream<SpmABType> SpmABStreamType;
@@ -755,6 +753,7 @@ class SpmvCoo
 			}
 		}
 
+
 	void
 	multA(DdrWideType *p_aAddr, unsigned int p_nnzBlocks) {
 
@@ -887,7 +886,6 @@ class SpmvCoo
 		xBarMergeCol(l_spm2MergeColS, l_cnt2MergeColS, l_spm2extractAs, l_cnt2extractAs);
 		LOOP_PAIRB:for(int b=0; b < t_NumUramPerDdr; ++b) {
 		#pragma HLS UNROLL
-			//pairB(l_spm2extractAs[b], l_cnt2ReadBs[b], l_spm2SplitRowS[b], l_cnt2SplitRowS[b], b);
 			extractA(l_spm2extractAs[b], l_cnt2extractAs[b], l_spmArowS[b], l_spmAcolOffsetS[b], l_spmAcolIndexS[b], l_spmAvalS[b], l_cnt2readUramBs[b]);
 			readUramB(l_spmAcolOffsetS[b], l_cnt2readUramBs[b], l_wordBs[b], l_cnt2readBs[b], b);
 			readB(l_wordBs[b], l_spmAcolIndexS[b], l_cnt2readBs[b], l_valBs[b], l_cnt2formABs[b]);
