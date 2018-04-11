@@ -115,6 +115,17 @@ else ifeq (${GEMX_part},ku115)
   XDEVICE_REPO_PATH=$(DSA_PATH)
   PLATFORM_REPO_PATH=$(DSA_PATH)/${DSA_PLATFORM}
   XOPENCL_LIB_PATH=${DSA_PATH}/../runtime/lib/x86_64
+else ifeq (${GEMX_part},vu9pf1)
+  CLCC_OPT += --xp param:compiler.acceleratorBinaryContent="bitstream"
+  CLCC_OPT += --xp vivado_param:hd.routingContainmentAreaExpansion=true 
+  DSA=5_0
+  XDEVICE_COLON=xilinx:aws-vu9p-f1:dynamic:$(subst _,.,${DSA})
+  XDEVICE=xilinx_aws-vu9p-f1_dynamic_${DSA}
+  DSA_PLATFORM=xilinx_aws-vu9p-f1_dynamic_${DSA}
+  #XDEVICE_REPO_PATH=$(XILINX_SDX)/../../../../internal_platforms/${DSA_PLATFORM}/hw
+  XDEVICE_REPO_PATH=$(XILINX_SDX)/../../../../internal_platforms
+  PLATFORM_REPO_PATH=$(XILINX_SDX)/../../../../internal_platforms/${DSA_PLATFORM}
+  XOPENCL_LIB_PATH=${PLATFORM_REPO_PATH}/sw/lib/x86_64
 else
   $(error Unknown GEMX_part ${GEMX_part})
 endif
@@ -269,6 +280,11 @@ else ifeq (${GEMX_part},vcu1525)
   K1_DDR = 1
   K2_DDR = 2
   K3_DDR = 3
+else ifeq (${GEMX_part},vu9pf1)
+  K0_DDR = 3
+  K1_DDR = 2
+  K2_DDR = 0
+  K3_DDR = 1
 endif
 
 CLCC_LINK_OPT += --sp gemxKernel_0.m_axi_gmemm:bank${K0_DDR}

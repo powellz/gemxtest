@@ -69,6 +69,7 @@ GEMX_kernelHlsFreq	   	= 250
 GEMX_kernelVivadoFreq  	= 250
 # How many kernels to replicate in the accelerator (use 1 to 4)
 GEMX_numKernels    			= 1
+GEMX_useURAM	   	= 0
 # What engines get included in each accelerator kernel (use 0 or 1)
 # The more engines you include the more catability you get but P&R
 # P&R becomes more difficult thus you get lower Fmax
@@ -94,7 +95,6 @@ ifeq (${GEMX_dataType}, float)
   GEMX_spmvMacGroups    =   12
   ifeq (${GEMX_ddrWidth}, 16)
     GEMX_spmvWidth   		=  8
-    #GEMX_spmvmVectorBlocks  =  10
   endif
   
 endif
@@ -123,6 +123,17 @@ else ifeq (${GEMX_part},ku115)
   XDEVICE_REPO_PATH=$(DSA_PATH)
   PLATFORM_REPO_PATH=$(DSA_PATH)/${DSA_PLATFORM}
   XOPENCL_LIB_PATH=${DSA_PATH}/../runtime/lib/x86_64
+else ifeq (${GEMX_part},vu9pf1)
+  CLCC_OPT += --xp param:compiler.acceleratorBinaryContent="bitstream"
+  CLCC_OPT += --xp vivado_param:hd.routingContainmentAreaExpansion=true 
+  DSA=5_0
+  XDEVICE_COLON=xilinx:aws-vu9p-f1:dynamic:$(subst _,.,${DSA})
+  XDEVICE=xilinx_aws-vu9p-f1_dynamic_${DSA}
+  DSA_PLATFORM=xilinx_aws-vu9p-f1_dynamic_${DSA}
+  #XDEVICE_REPO_PATH=$(XILINX_SDX)/../../../../internal_platforms/${DSA_PLATFORM}/hw
+  XDEVICE_REPO_PATH=$(XILINX_SDX)/../../../../internal_platforms
+  PLATFORM_REPO_PATH=$(XILINX_SDX)/../../../../internal_platforms/${DSA_PLATFORM}
+  XOPENCL_LIB_PATH=${PLATFORM_REPO_PATH}/sw/lib/x86_64
 else
   $(error Unknown GEMX_part ${GEMX_part})
 endif
@@ -283,6 +294,11 @@ else ifeq (${GEMX_part},vcu1525)
   K1_DDR = 1
   K2_DDR = 2
   K3_DDR = 3
+else ifeq (${GEMX_part},vu9pf1)
+  K0_DDR = 3
+  K1_DDR = 2
+  K2_DDR = 0
+  K3_DDR = 1
 endif
 
 CLCC_LINK_OPT += --sp gemxKernel_0.m_axi_gmemm:bank${K0_DDR}
