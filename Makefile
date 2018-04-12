@@ -478,6 +478,7 @@ endif
 host : ${HOST_EXE} ${GEN_BIN_EXE} ${APP_GOLD_TXT} 
 
 api_gemm : ${API_GEMM_EXE}
+api_spmv : ${API_SPMV_EXE}
 
 ${GEMX_HOST_OBJS} : ./src/* | ${OUT_HOST_DIR}
 	@echo "**** Compile host binding for Python ****"
