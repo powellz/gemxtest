@@ -291,8 +291,8 @@ else ifeq (${GEMX_part},kcu1500)
   K3_DDR = 3
 else ifeq (${GEMX_part},vcu1525)
   K0_DDR = 0
-  K1_DDR = 1
-  K2_DDR = 2
+  K1_DDR = 2
+  K2_DDR = 1
   K3_DDR = 3
 else ifeq (${GEMX_part},vu9pf1)
   K0_DDR = 3
