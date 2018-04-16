@@ -3,6 +3,7 @@ import timeit
 import numpy as np
 import sys
 import argparse
+import math
 class GEMXManager:
   def __init__(self, libFile):
     #self._handle = None
@@ -127,16 +128,6 @@ def printStats():
 def getFreq():
   return _gemxManager.getFreq()
 
-def create_buf ( q_wt, inp_shape):
-    fpga_buf = []
-    buf_shape = inp_shape
-    fpga_buf.append ( create_fpga_buf( buf_shape, q_wt[0].dtype ) )
-    for w in q_wt:
-        buf_shape = ( buf_shape[0], w.shape[1] )
-        fpga_buf.append ( create_fpga_buf( buf_shape, w.dtype ) )
-    
-    return fpga_buf
-    
 def create_fpga_buf ( shape, np_type ):
     a = np.zeros ( shape, dtype=np_type, order='C')
     _gemxManager.sendMat(a)
@@ -146,20 +137,6 @@ def load_buf ( np_list):
     for b in np_list:
         _gemxManager.sendMat(b)
 
-def predict ( w, b, activations, fpga_buf, inp, in_scale, post_scale, out_dim):
-    
-    np.copyto(fpga_buf[0], np.int16( inp * in_scale ), casting='same_kind', where=True)
-    _gemxManager.sendMat(fpga_buf[0])
-    for i,iw in enumerate(w):
-        if activations[i] == 'relu':
-            _gemxManager.addFCNOp( fpga_buf[i], iw, fpga_buf[i+1], b[i], post_scale[i][0], post_scale[i][1], 0, 0)
-        else:
-            _gemxManager.addGEMMOp( fpga_buf[i], iw, fpga_buf[i+1], b[i], post_scale[i][0], post_scale[i][1])
-             
-    _gemxManager.execute()
-    _gemxManager.getMat (fpga_buf[-1])
-    return fpga_buf[-1][:out_dim[0],:out_dim[1]]
-        
 def processCommandLine():
   parser = argparse.ArgumentParser(description='GEMX')
   parser.add_argument('--xclbin', required = True, help='file path to FPGA bitstream')
