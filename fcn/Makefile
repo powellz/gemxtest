@@ -118,14 +118,22 @@ else ifeq (${GEMX_part},ku115)
 else ifeq (${GEMX_part},vu9pf1)
   CLCC_OPT += --xp param:compiler.acceleratorBinaryContent="bitstream"
   CLCC_OPT += --xp vivado_param:hd.routingContainmentAreaExpansion=true 
-  DSA=5_0
-  XDEVICE_COLON=xilinx:aws-vu9p-f1:dynamic:$(subst _,.,${DSA})
-  XDEVICE=xilinx_aws-vu9p-f1_dynamic_${DSA}
-  DSA_PLATFORM=xilinx_aws-vu9p-f1_dynamic_${DSA}
-  #XDEVICE_REPO_PATH=$(XILINX_SDX)/../../../../internal_platforms/${DSA_PLATFORM}/hw
-  XDEVICE_REPO_PATH=$(XILINX_SDX)/../../../../internal_platforms
-  PLATFORM_REPO_PATH=$(XILINX_SDX)/../../../../internal_platforms/${DSA_PLATFORM}
-  XOPENCL_LIB_PATH=${PLATFORM_REPO_PATH}/sw/lib/x86_64
+#  DSA=5_0
+#  XDEVICE_COLON=xilinx:aws-vu9p-f1:dynamic:$(subst _,.,${DSA})
+#  XDEVICE=xilinx_aws-vu9p-f1_dynamic_${DSA}
+#  DSA_PLATFORM=xilinx_aws-vu9p-f1_dynamic_${DSA}
+#  XDEVICE_REPO_PATH=$(XILINX_SDX)/../../../../internal_platforms
+#  PLATFORM_REPO_PATH=$(XILINX_SDX)/../../../../internal_platforms/${DSA_PLATFORM}
+#  XOPENCL_LIB_PATH=${PLATFORM_REPO_PATH}/sw/lib/x86_64
+##for 2017.1 F1
+  DSA=4_0
+  XDEVICE_COLON=xilinx:aws-vu9p-f1:4ddr-xpr-2pr:$(subst _,.,${DSA})
+  XDEVICE=xilinx_aws-vu9p-f1_4ddr-xpr-2pr_${DSA}
+  DSA_PLATFORM=xilinx_aws-vu9p-f1_4ddr-xpr-2pr_${DSA}
+  XDEVICE_REPO_PATH=$(XILINX_SDX)/platforms
+  PLATFORM_REPO_PATH=$(XILINX_SDX)/platforms/${DSA_PLATFORM}
+  XOPENCL_LIB_PATH=${XILINX_SDX}/runtime/lib/x86_64
+
 else
   $(error Unknown GEMX_part ${GEMX_part})
 endif
@@ -277,9 +285,9 @@ else ifeq (${GEMX_part},kcu1500)
   K3_DDR = 3
 else ifeq (${GEMX_part},vcu1525)
   K0_DDR = 0
-  K1_DDR = 2
+  K1_DDR = 3
   K2_DDR = 1
-  K3_DDR = 3
+  K3_DDR = 2
 else ifeq (${GEMX_part},vu9pf1)
   K0_DDR = 3
   K1_DDR = 2
