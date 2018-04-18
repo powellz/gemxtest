@@ -13,8 +13,6 @@ class Test:
       else:
           print ("not equal :(")
           sys.exit()  
-          
-        
 
   def multiply_and_cmp(self,C, A, B, X, m, n, post_scale):
       # Calculate golden C
