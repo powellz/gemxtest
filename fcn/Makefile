@@ -214,6 +214,7 @@ CFLAGS_K = $(GMEM_FLAGS) -I ./src -I ../src \
           -Wno-ignored-attributes \
            
 KERNEL_DEFS += $(CFLAGS_K)
+CONFIG_INFO = $(shell echo ${CFLAGS_K} | sed 's/.*TEST_SDX=1//; s/-D //g; s/ -Wno.*//')
 
 KEEP_TEMP=1
 KERNEL_DEBUG=1
@@ -424,7 +425,6 @@ ifeq ($(shell test $(GEMX_numKernels) -gt 2; echo $$?),0)
 	cmp -i 8192 ${APP_GOLD_BIN} ${OUT_DIR}/app_out2.bin || ${GEN_BIN_EXE} -compare 1e-3 3e-6 ${APP_GOLD_BIN} ${OUT_DIR}/app_out2.bin
 endif
 ifeq ($(shell test $(GEMX_numKernels) -gt 3; echo $$?),0)
-	
 	cmp -i 8192 ${APP_GOLD_BIN} ${OUT_DIR}/app_out3.bin || ${GEN_BIN_EXE} -compare 1e-3 3e-6 ${APP_GOLD_BIN} ${OUT_DIR}/app_out3.bin
 endif
 
@@ -451,6 +451,7 @@ ${OUT_HOST_DIR}/emconfig.json :
 	$(XILINX_SDX)/bin/emconfigutil --xdevice ${XDEVICE_COLON} ${DEVICE_REPO_OPT} --od ${OUT_HOST_DIR}
 
 xbin: ${XCLBIN}
+	+make dump_config
 
 ${XCLBIN}: ${KERNEL_XOS}
 	@echo "************* Compile XCLBIN ${XCLBIN}  from  ${KERNEL_XOS} *************"
@@ -472,6 +473,9 @@ clean :
 
 clean_int:
 	${RM} -rf ${OUT_DIR} log-run_${SDA_FLOW}.txt
+
+dump_config: ${OUT_DIR}
+	@echo ${CONFIG_INFO} > ${OUT_DIR}/config_info.dat
 
 ${OUT_DIR} :
 	@echo "************* Creating DIR $@ *************"

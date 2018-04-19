@@ -221,6 +221,7 @@ CFLAGS_K = $(GMEM_FLAGS) -I ./src \
           -Wno-ignored-attributes \
            
 KERNEL_DEFS += $(CFLAGS_K)
+CONFIG_INFO = $(shell echo ${CFLAGS_K} | sed 's/.*TEST_SDX=1//; s/-D //g; s/ -Wno.*//')
 
 KEEP_TEMP=1
 KERNEL_DEBUG=1
@@ -520,6 +521,7 @@ ${OUT_HOST_DIR}/emconfig.json :
 	$(XILINX_SDX)/bin/emconfigutil --xdevice ${XDEVICE_COLON} ${DEVICE_REPO_OPT} --od ${OUT_HOST_DIR}
 
 xbin: ${XCLBIN}
+	+make dump_config
 
 ${XCLBIN}: ${KERNEL_XOS}
 	@echo "************* Compile XCLBIN ${XCLBIN}  from  ${KERNEL_XOS} *************"
@@ -541,6 +543,9 @@ clean :
 
 clean_int:
 	${RM} -rf ${OUT_DIR} log-run_${SDA_FLOW}.txt
+
+dump_config: ${OUT_DIR}
+	@echo ${CONFIG_INFO} > ${OUT_DIR}/config_info.dat
 
 ${OUT_DIR} :
 	@echo "************* Creating DIR $@ *************"
