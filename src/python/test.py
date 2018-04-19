@@ -88,8 +88,19 @@ class Test:
       gemx.getMat(C_fpga)  
       if m > 4096 and n > 4096 and k > 4096:
         print("Skip golden comparision because large matrix size")
-        else:
+      else:
         self.multiply_and_cmp(C_fpga, mat_A, mat_B, bias, m, n, post_scale)
+   
+  def test_perf(self,timePointKernel, total_operations, total_parallel_operations, freq, m, k, n):
+      Execute_Time = (timePointKernel[2] - timePointKernel[1])*1e3
+      API_Time = (timePointKernel[3] - timePointKernel[0])*1e3
+      timeMsAt100pctEff = total_parallel_operations / 2 / 32 / 32 / ( freq * 1e6 ) * 1e3
+      effKernelPct = 100 * timeMsAt100pctEff / Execute_Time
+      effApiPct = 100 * timeMsAt100pctEff / API_Time
+      perfKernelInTops = total_operations / (Execute_Time * 1e-3) / 1e12
+      perfApiInTops = total_operations/ (API_Time * 1e-3) / 1e12;
+      print "DATA_CSV:DdrWidth,Freq,M,K,N,Ops,TimeKernelMs,TimeApiMs,EffKernelPct,EffApiPct,PerfKernelTops,PerfApiTops"
+      print ("DATA_CSV:32,%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%f" % (freq,m,k,n,total_operations,Execute_Time,API_Time,effKernelPct,effApiPct,perfKernelInTops,perfApiInTops))
         
 class FcnTest(Test):       
   def test_basic(self,mat_A, mat_B, bias, post_scale=[1, 1]):

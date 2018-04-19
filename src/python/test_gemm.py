@@ -37,7 +37,7 @@ def test_multiInstrv1(int_range, m, k, n, add_bias=False):
     print("test E")
     test.multiply_and_cmp(E, D, C, b1, m, n, [1, 0])
         
-def test_perf(A_range, B_range, bias_range, m, k, n, post_scale):
+def test_perf_gemm_gemm(A_range, B_range, bias_range, m, k, n, post_scale):
     mat_A = np.random.randint(low=-A_range, high=A_range, size=(m, k), dtype=np.int16)
     mat_B = np.random.randint(low=-B_range, high=B_range, size=(k, n), dtype=np.int16)  
     bias = []
@@ -61,21 +61,13 @@ def test_perf(A_range, B_range, bias_range, m, k, n, post_scale):
     total_operations = 2 * m * n * k + m * n * 3
     total_parallel_operations = 2 * m * n * k
     freq = gemx.getFreq()
-    Execute_Time = (timePointKernel[2] - timePointKernel[1])*1e3
-    API_Time = (timePointKernel[3] - timePointKernel[0])*1e3
-    timeMsAt100pctEff = total_parallel_operations / 2 / 32 / 32 / ( freq * 1e6 ) * 1e3
-    effKernelPct = 100 * timeMsAt100pctEff / Execute_Time
-    effApiPct = 100 * timeMsAt100pctEff / API_Time
-    perfKernelInTops = total_operations / (Execute_Time * 1e-3) / 1e12
-    perfApiInTops = total_operations/ (API_Time * 1e-3) / 1e12;
-    print "DATA_CSV:,DdrWidth,Freq,M,K,N,Ops,TimeKernelMs,TimeApiMs,EffKernelPct,EffApiPct,PerfKernelTops,PerfApiTops"
-    print ("DATA_CSV:,32,%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%f" % (freq,m,k,n,total_operations,Execute_Time,API_Time,effKernelPct,effApiPct,perfKernelInTops,perfApiInTops))
+    test.test_perf(timePointKernel,total_operations,total_parallel_operations,freq,m,k,n)
     if m > 4096 and n > 4096 and k > 4096:
       print("Skip golden comparision because large matrix size")
     else:
       test.multiply_and_cmp(C_fpga, mat_A, mat_B, bias, m, n, post_scale)
     
-def test_perf_multi(ins_count, m_size, k_size, n_size, A_range, B_range, post_scale):
+def test_perf_multi_gemm(ins_count, m_size, k_size, n_size, A_range, B_range, post_scale):
     total_operations = 0
     total_parallel_operations = 0
     mat_A=[]
@@ -108,15 +100,7 @@ def test_perf_multi(ins_count, m_size, k_size, n_size, A_range, B_range, post_sc
     gemx.getMat(mat_C[3]) 
     timePointKernel.append(time.time()) # copy from FPGA
     freq = gemx.getFreq()
-    Execute_Time = (timePointKernel[2] - timePointKernel[1])*1e3
-    API_Time = (timePointKernel[3] - timePointKernel[0])*1e3
-    timeMsAt100pctEff = total_parallel_operations / 2 / 32 / 32 / ( freq * 1e6 ) * 1e3
-    effKernelPct = 100 * timeMsAt100pctEff / Execute_Time
-    effApiPct = 100 * timeMsAt100pctEff / API_Time
-    perfKernelInTops = total_operations / (Execute_Time * 1e-3) / 1e12
-    perfApiInTops = total_operations/ (API_Time * 1e-3) / 1e12;
-    print "DATA_CSV:,DdrWidth,Freq,M,K,N,Ops,TimeKernelMs,TimeApiMs,EffKernelPct,EffApiPct,PerfKernelTops,PerfApiTops"
-    print ("DATA_CSV:,32,%d,M,K,N,%d,%f,%f,%f,%f,%f,%f" % (freq,total_operations,Execute_Time,API_Time,effKernelPct,effApiPct,perfKernelInTops,perfApiInTops))
+    test.test_perf(timePointKernel,total_operations,total_parallel_operations,freq,0,0,0)
     if np.max(m_size) > 4096 and np.max(k_size) > 4096 and np.max(n_size) > 4096:
       print("Skip golden comparision because large matrix size")
     else:
@@ -138,7 +122,7 @@ if __name__ == '__main__':
   m_size=np.array([512,512,2048,128])
   k_size=np.array([384,512,512,2048])
   n_size=np.array([128,128,128,128])   
-  test_perf_multi(4, m_size, k_size, n_size, 32764, 32764, [1,0]) # run performance measurement
+  test_perf_multi_gemm(4, m_size, k_size, n_size, 32764, 32764, [1,0]) # run performance measurement
   gemx.printStats()
 
   size = 256
