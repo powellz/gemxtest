@@ -73,15 +73,21 @@ def test_perf_multi_gemm(ins_count, m_size, k_size, n_size, A_range, B_range, po
       test.multiply_and_cmp(mat_C[3], mat_A[3], mat_C[2], mat_bias[3], m_size[3], n_size[3], post_scale)
 
 if __name__ == '__main__':
+    np.random.seed(123)  # for reproducibility
+    test=GemmTest()
+    parser = gemx.processCommandLine()
+    args = parser.parse_args()    
+    
+    gemx.createGEMMHandle(args.xclbin, args.gemxlib, args.device, args.numKernel)
     m_size=np.array([512,512,2048,128])
     k_size=np.array([384,512,512,2048])
     n_size=np.array([128,128,128,128])   
     test_perf_multi_gemm(4, m_size, k_size, n_size, 32764, 32764, [1,0]) # run performance measurement
     gemx.printStats()
     
-    size = 256
-    while size < 16384:
-        test_perf(32764, 32764, 0, size, size, size, [1,0])
-        size = size * 2
+#    size = 256
+#    while size < 16384:
+#        test_perf(32764, 32764, 0, size, size, size, [1,0])
+#        size = size * 2
 
      
