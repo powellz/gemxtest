@@ -9,71 +9,69 @@ class GEMXManager:
     #self._handle = None
     
     self._lib = cdll.LoadLibrary(libFile)
-    self._lib.MakeFCNHost.argtypes = [c_char_p, c_char_p, c_char_p]
-    self._lib.MakeGEMMHost.argtypes = [c_char_p, c_char_p, c_char_p]
+    self._lib.MakeFCNHost.argtypes = [c_char_p, c_char_p,c_uint]
+    self._lib.MakeGEMMHost.argtypes = [c_char_p, c_char_p, c_uint]
                 
-    self._lib.SendToFPGAShrt.argtypes = [np.ctypeslib.ndpointer(c_short, flags="C_CONTIGUOUS"), c_ulonglong, c_bool]
-    self._lib.SendToFPGAInt.argtypes = [np.ctypeslib.ndpointer(c_int, flags="C_CONTIGUOUS"), c_ulonglong, c_bool]
+    self._lib.SendToFPGAShrt.argtypes = [np.ctypeslib.ndpointer(c_short, flags="C_CONTIGUOUS"), c_ulonglong, c_uint, c_bool]
+    self._lib.SendToFPGAInt.argtypes = [np.ctypeslib.ndpointer(c_int, flags="C_CONTIGUOUS"), c_ulonglong, c_uint, c_bool]
     
     self._lib.AddFCNOp.argtypes = [np.ctypeslib.ndpointer(c_short, flags="C_CONTIGUOUS"),  
                                    np.ctypeslib.ndpointer(c_short, flags="C_CONTIGUOUS"), 
                                    np.ctypeslib.ndpointer(c_short, flags="C_CONTIGUOUS"), 
                                    np.ctypeslib.ndpointer(c_int, flags="C_CONTIGUOUS"), 
-                                   c_uint, c_uint, c_uint, c_int, c_int, c_short, c_short]
+                                   c_uint, c_uint, c_uint, c_int, c_int, c_short, c_short, c_uint]
                                    
     self._lib.AddGEMMOp.argtypes = [np.ctypeslib.ndpointer(c_short, flags="C_CONTIGUOUS"),  
                                    np.ctypeslib.ndpointer(c_short, flags="C_CONTIGUOUS"), 
                                    np.ctypeslib.ndpointer(c_short, flags="C_CONTIGUOUS"), 
                                    np.ctypeslib.ndpointer(c_int, flags="C_CONTIGUOUS"), 
-                                   c_uint, c_uint, c_uint, c_int, c_int]
+                                   c_uint, c_uint, c_uint, c_int, c_int, c_uint]
     self._lib.AddFCNOp.restype = c_bool
     self._lib.AddGEMMOp.restype = c_bool
     
-    self._lib.Execute.argtypes = [c_bool]
-    self._lib.GetFromFPGA.argtypes = [np.ctypeslib.ndpointer(c_short, flags="C_CONTIGUOUS"), c_bool]
+    self._lib.Execute.argtypes = [c_bool, c_uint]
+    self._lib.GetFromFPGA.argtypes = [np.ctypeslib.ndpointer(c_short, flags="C_CONTIGUOUS"), c_uint, c_bool]
     self._lib.GetFromFPGA.restype = c_void_p
-    self._lib.Wait.argtypes = []
+    self._lib.Wait.argtypes = [c_uint]
     self._lib.PrintStats.argtypes = []    
     self._lib.GetFreq.argtypes = []  
         
-  def createFCNHandle (self, xclbin, kernel, deviceName, numHandles):
+  def createFCNHandle (self, xclbin, deviceName, numHandles):
      b_xclbin = xclbin.encode('utf-8')
-     b_kernel = kernel.encode('utf-8')
      b_device = deviceName.encode('utf-8')
-     self._lib.MakeFCNHost(b_xclbin, b_kernel, b_device)
+     self._lib.MakeFCNHost(b_xclbin, b_device,numHandles)
      
-  def createGEMMHandle (self, xclbin, kernel, deviceName, numHandles):
+  def createGEMMHandle (self, xclbin, deviceName, numHandles):
      b_xclbin = xclbin.encode('utf-8')
-     b_kernel = kernel.encode('utf-8')
      b_device = deviceName.encode('utf-8')
-     self._lib.MakeGEMMHost(b_xclbin, b_kernel, b_device)
+     self._lib.MakeGEMMHost(b_xclbin, b_device,numHandles)
      
-  def addFCNOp(self, A, B, C, bias, postScale, postShift, PReLUScale, PReLUAlpha):
-    return self._lib.AddFCNOp(A,B, C, bias, c_uint(A.shape[0]), c_uint( A.shape[1] ), c_uint( B.shape[1]), c_int(postScale), c_int(postShift), c_short(PReLUScale), c_short(PReLUAlpha))
+  def addFCNOp(self, A, B, C, bias, postScale, postShift, PReLUScale, PReLUAlpha, PE):
+    return self._lib.AddFCNOp(A,B, C, bias, c_uint(A.shape[0]), c_uint( A.shape[1] ), c_uint( B.shape[1]), c_int(postScale), c_int(postShift), c_short(PReLUScale), c_short(PReLUAlpha), c_uint(PE))
   
-  def addGEMMOp(self, A, B, C, bias, postScale, postShift):
-    return self._lib.AddGEMMOp(A,B, C, bias, c_uint(A.shape[0]), c_uint( A.shape[1] ), c_uint( B.shape[1]), c_int(postScale), c_int(postShift))
+  def addGEMMOp(self, A, B, C, bias, postScale, postShift, PE):
+    return self._lib.AddGEMMOp(A,B, C, bias, c_uint(A.shape[0]), c_uint( A.shape[1] ), c_uint( B.shape[1]), c_int(postScale), c_int(postShift), c_uint(PE))
     
-  def execute(self, sync_exec = True):
-    self._lib.Execute(sync_exec)
+  def execute(self, PE, sync_exec = True):
+    self._lib.Execute(sync_exec, PE)
 
-  def wait(self):
-    self._lib.Wait()    
+  def wait(self, PE):
+    self._lib.Wait(PE)    
           
-  def sendMat ( self, A,sync_send = False):
+  def sendMat ( self, A, PE, sync_send = False):
     if A.flags['C_CONTIGUOUS'] == False:
         A = np.ascontiguousarray(A)
         print ("Warning: not C_CONTIGUOUS, performance will be affected")
         
     if A.dtype == np.int32:
-        self._lib.SendToFPGAInt( A, c_ulonglong(A.size),  sync_send )
+        self._lib.SendToFPGAInt( A, c_ulonglong(A.size), c_uint(PE), sync_send )
     elif A.dtype == np.int16:
-        self._lib.SendToFPGAShrt( A, c_ulonglong(A.size),  sync_send )        
+        self._lib.SendToFPGAShrt( A, c_ulonglong(A.size), c_uint(PE), sync_send )        
     else:
         raise TypeError("type", A, "not supported")
     
-  def getMat(self, A, sync_get = True):
-    self._lib.GetFromFPGA( A, sync_get )
+  def getMat(self, A, PE=0, sync_get = True):
+    self._lib.GetFromFPGA( A, PE, sync_get )
     
   def printStats(self):
     self._lib.PrintStats()
@@ -83,44 +81,37 @@ class GEMXManager:
 
 _gemxManager = None
 
-def sendMat ( A,sync_send=False):
-    _gemxManager.sendMat(A,sync_send)
+def sendMat ( A,PE=0,sync_send=False):
+    _gemxManager.sendMat(A,PE,sync_send)
 
-def getMat (A, sync_get = True):
-    return _gemxManager.getMat(A, sync_get)
+def getMat (A, PE=0, sync_get = True):
+    return _gemxManager.getMat(A, PE,sync_get)
     
-def addFCNOp( A,B,C, bias, postScale, postShift, PReLUScale, PReLUAlpha):
-    _gemxManager.addFCNOp(A, B, C, bias, postScale, postShift, PReLUScale, PReLUAlpha)
+def addFCNOp( A,B,C, bias, postScale, postShift, PReLUScale, PReLUAlpha,PE=0):
+    _gemxManager.addFCNOp(A, B, C, bias, postScale, postShift, PReLUScale, PReLUAlpha, PE)
     
-def addGEMMOp( A,B,C, bias, postScale, postShift):
-    _gemxManager.addGEMMOp(A, B, C, bias, postScale, postShift)
+def addGEMMOp( A,B,C, bias, postScale, postShift,PE=0):
+    _gemxManager.addGEMMOp(A, B, C, bias, postScale, postShift, PE)
     
-def execute(sync_exec = True):
-    _gemxManager.execute( sync_exec)
+def execute(PE=0, sync_exec = True):
+    _gemxManager.execute( PE, sync_exec)
 
-def wait():
-    _gemxManager.wait()    
+def wait(PE=0):
+    _gemxManager.wait(PE)    
     
-def matmul ( A, B, SendA = True, SendB = True):
-    bias = np.zeros ( (A.shape[0], B.shape[1]), dtype=np.int32)   
-    return _gemxManager.matmul_addbias(A, B, bias, SendA, SendB,True)
-
-def matmul_addbias ( A, B, bias, SendA = True, SendB = True, SendBias = True):
-    return _gemxManager.matmul_addbias(A, B, bias, SendA, SendB, SendBias)
-
 def createManager ( libFile ):
   global _gemxManager
   if not _gemxManager:
     _gemxManager = GEMXManager(libFile)    
   return True  
     
-def createFCNHandle(xclbin, kernel, libFile, deviceName, numHandles=1):
+def createFCNHandle(xclbin, libFile, deviceName, numPE=1):
   createManager (libFile)
-  return _gemxManager.createFCNHandle(xclbin, kernel, deviceName, numHandles)
+  return _gemxManager.createFCNHandle(xclbin, deviceName, numPE)
 
-def createGEMMHandle(xclbin, kernel, libFile, deviceName, numHandles=1):
+def createGEMMHandle(xclbin, libFile, deviceName, numPE=1):
   createManager (libFile)
-  return _gemxManager.createGEMMHandle(xclbin, kernel, deviceName, numHandles)
+  return _gemxManager.createGEMMHandle(xclbin, deviceName, numPE)
 
 def printStats():
   return _gemxManager.printStats()
@@ -128,20 +119,20 @@ def printStats():
 def getFreq():
   return _gemxManager.getFreq()
 
-def create_fpga_buf ( shape, np_type ):
+def create_fpga_buf ( shape, np_type , PE=0):
     a = np.zeros ( shape, dtype=np_type, order='C')
-    _gemxManager.sendMat(a)
+    _gemxManager.sendMat(a, PE)
     return a
 
-def load_buf ( np_list):
+def load_buf ( np_list, PE=0):
     for b in np_list:
-        _gemxManager.sendMat(b)
+        _gemxManager.sendMat(b, PE)
 
 def processCommandLine():
   parser = argparse.ArgumentParser(description='GEMX')
   parser.add_argument('--xclbin', required = True, help='file path to FPGA bitstream')
   parser.add_argument('--gemxlib', required = True, help='file path to GEMX host code shared library')
   parser.add_argument('--device', required=True, choices=['ku115','kcu1500','vu9p', 'vcu1525', 'vu9pf1'], help='supported FPGA devices')
-  parser.add_argument('-k', '--kernelName', default="gemxKernel_0", help='FPGA kernel name')  
+  parser.add_argument('-n', '--numKernel', type=int, default=1, help='FPGA kernel name')  
   return parser
 

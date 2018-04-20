@@ -63,7 +63,7 @@ public:
     FCNHost() = delete;
     virtual ~FCNHost(){}
     FCNHost ( const FCNHost<HType>&) = delete;
-    FCNHost(const string & xclbin, const string & kernelName, const string & device ) : GEMMHost<HType> ( xclbin, kernelName, device)
+    FCNHost(const string & xclbin, const string & kernelName, const unsigned ddrBank, const string & device) : GEMMHost<HType> ( xclbin, kernelName, ddrBank, device)
     {
     }
 

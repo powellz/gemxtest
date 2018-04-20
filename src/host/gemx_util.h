@@ -3,8 +3,17 @@
 
 #include <chrono>
 #include <assert.h>
-
+#include <boost/assert.hpp>
 using namespace std;
+
+#define XASSERT(cond, msg) {\
+    if(!(cond))\
+    {\
+        std::stringstream str;\
+        str << msg;\
+        BOOST_ASSERT_MSG(cond, str.str().c_str());\
+    }\
+}
 
 namespace gemx{
 

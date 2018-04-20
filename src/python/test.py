@@ -35,7 +35,7 @@ class Test:
           sys.exit();    
         
         
-  def test_basic_randint (self,A_range, B_range, bias_range, m, k, n, post_scale):
+  def test_basic_randint (self,PE, A_range, B_range, bias_range, m, k, n, post_scale):
       mat_A = np.random.randint(low=-A_range, high=A_range, size=(m, k), dtype=np.int16)
 
       mat_B = np.random.randint(low=-B_range, high=B_range, size=(k, n), dtype=np.int16)  
@@ -44,9 +44,9 @@ class Test:
           bias = np.random.randint(low=-bias_range, high=bias_range, size=(m, n), dtype=np.int32)
       else:
           bias = np.zeros ((m, n), dtype=np.int32, order='C');      
-      self.test_basic(mat_A, mat_B, bias, post_scale)
+      self.test_basic(PE,mat_A, mat_B, bias, post_scale)
 
-  def test_basic_randint_shift (self,A_range, A_shift, B_range, B_shift, bias_range, bias_shift, m, k, n, post_scale):
+  def test_basic_randint_shift (self,PE,A_range, A_shift, B_range, B_shift, bias_range, bias_shift, m, k, n, post_scale):
       mat_A = np.random.randint(low=-A_range, high=A_range, size=(m, k), dtype=np.int16)
       mat_A = mat_A + A_shift
       mat_B = np.random.randint(low=-B_range, high=B_range, size=(k, n), dtype=np.int16)
@@ -56,9 +56,9 @@ class Test:
           bias = np.random.randint(low=-bias_range, high=bias_range, size=(m, n), dtype=np.int32)
       else:
           bias = np.zeros ((m, n), dtype=np.int32);    bias = bias + bias_shift
-      self.test_basic(mat_A, mat_B, bias, post_scale)  
+      self.test_basic(PE,mat_A, mat_B, bias, post_scale)  
       
-  def test_rand_basic (self,int_range, bias_range, num_iter, post_scale):  
+  def test_rand_basic (self,PE,int_range, bias_range, num_iter, post_scale):  
       min_sz_exp = 8 
       for i in range(num_iter):
           print ("test_rand_basic iter: %d" % i)
@@ -68,24 +68,24 @@ class Test:
           rand_m = 2 ** (rand_m + min_sz_exp) 
           rand_k = 2 ** (rand_k + min_sz_exp)
           rand_n = 2 ** (rand_n + min_sz_exp)
-          self.test_basic_randint(int_range, int_range, bias_range, rand_m, rand_k, rand_n, post_scale)
+          self.test_basic_randint(PE,int_range, int_range, bias_range, rand_m, rand_k, rand_n, post_scale)
           
-  def test_basic(self,mat_A, mat_B, bias, post_scale = [1,1]):
+  def test_basic(self,PE, mat_A, mat_B, bias, post_scale = [1,1]):
       m = mat_A.shape[0]
       k = mat_A.shape[1]
       n = mat_B.shape[1]
-      print ("test_basic: %d %d %d %d %d" % (m, k, n, post_scale[0], post_scale[1] )) 
+      print ("test_basic(PE=%d): %d %d %d %d %d" % (PE,m, k, n, post_scale[0], post_scale[1] )) 
       print ("A: ", np.amax(mat_A), np.amin(mat_A), np.average(mat_A))
       print ("B: ", np.amax(mat_B), np.amin(mat_B), np.average(mat_B))
       print ("bias: ", np.amax(bias), np.amin(bias), np.average(bias))
       C_fpga = np.zeros( (m, n), dtype=np.int16)
-      gemx.sendMat(mat_A)
-      gemx.sendMat(mat_B)
-      gemx.sendMat(C_fpga)    
-      gemx.sendMat(bias)
-      gemx.addGEMMOp ( mat_A, mat_B, C_fpga, bias, post_scale[0], post_scale[1]) # default test_basic will call addGEMMOp
-      gemx.execute()
-      gemx.getMat(C_fpga)  
+      gemx.sendMat(mat_A,PE)
+      gemx.sendMat(mat_B,PE)
+      gemx.sendMat(C_fpga,PE)    
+      gemx.sendMat(bias, PE)
+      gemx.addGEMMOp ( mat_A, mat_B, C_fpga, bias, post_scale[0], post_scale[1], PE) # default test_basic will call addGEMMOp
+      gemx.execute(PE)
+      gemx.getMat(C_fpga,PE)  
       if m > 4096 and n > 4096 and k > 4096:
         print("Skip golden comparision because large matrix size")
       else:
@@ -103,7 +103,7 @@ class Test:
       print ("DATA_CSV:32,%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%f" % (freq,m,k,n,total_operations,Execute_Time,API_Time,effKernelPct,effApiPct,perfKernelInTops,perfApiInTops))
         
 class FcnTest(Test):       
-  def test_basic(self,mat_A, mat_B, bias, post_scale=[1, 1]):
+  def test_basic(self,PE, mat_A, mat_B, bias, post_scale=[1, 1]):
       m = mat_A.shape[0]
       k = mat_A.shape[1]
       n = mat_B.shape[1]
@@ -112,13 +112,13 @@ class FcnTest(Test):
       print ("B: ", np.amax(mat_B), np.amin(mat_B), np.average(mat_B))
       print ("bias: ", np.amax(bias), np.amin(bias), np.average(bias))
       C_fpga = np.zeros((m, n), dtype=np.int16, order='C')
-      gemx.sendMat(mat_A)
-      gemx.sendMat(mat_B)
-      gemx.sendMat(C_fpga)    
-      gemx.sendMat(bias)
-      gemx.addFCNOp (mat_A, mat_B, C_fpga, bias, post_scale[0], post_scale[1], 1, 0)
-      gemx.execute()
-      gemx.getMat(C_fpga)  
+      gemx.sendMat(mat_A, PE)
+      gemx.sendMat(mat_B, PE)
+      gemx.sendMat(C_fpga, PE)    
+      gemx.sendMat(bias, PE)
+      gemx.addFCNOp (mat_A, mat_B, C_fpga, bias, post_scale[0], post_scale[1], 1, 0, PE)
+      gemx.execute(PE)
+      gemx.getMat(C_fpga, PE)  
       if m > 4096 and n > 4096 and k > 4096:
         print("Skip golden comparision because large matrix size")
       else:

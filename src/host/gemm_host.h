@@ -41,18 +41,45 @@ template<typename HType>
 class GEMMHost : public XHost<HType> {
 public:
     GEMMHost() = delete;
-    virtual ~GEMMHost() {
-    }
+
+    virtual ~GEMMHost() {}
+
     GEMMHost(const GEMMHost<HType> &) = delete;
 
-    GEMMHost(const string & xclbin, const string & kernelName, const string &device) : XHost<HType> ( xclbin, kernelName, device)
+
+    static vector<unsigned> getDDRBankFlags(const string & device)
+    {
+        vector<unsigned>ddrBanks;
+        unsigned ddr_flags;
+        if ( device == "ku115" || device == "kcu1500" ){
+            ddrBanks = {XCL_MEM_DDR_BANK0, XCL_MEM_DDR_BANK1, XCL_MEM_DDR_BANK2, XCL_MEM_DDR_BANK3};
+        }
+        else if( device == "vcu1525"){
+            ddrBanks = {XCL_MEM_DDR_BANK0, XCL_MEM_DDR_BANK3, XCL_MEM_DDR_BANK1, XCL_MEM_DDR_BANK2 };
+        }
+        else if ( device == "vu9pf1"){
+            ddrBanks = {XCL_MEM_DDR_BANK3, XCL_MEM_DDR_BANK2, XCL_MEM_DDR_BANK0, XCL_MEM_DDR_BANK1};
+        }
+        else{
+            cerr << "Unsupported device! Options are ku115, kcu1500, vu9pf1, vcu1525" << endl;
+            assert( device == "ku115" || device == "kcu1500" || device == "vu9pf1" || device == "vcu1525");
+        }
+        return ddrBanks;
+    }
+
+    static string getKernelName(unsigned PE)
+    {
+    	return "gemxKernel_" + std::to_string(PE);
+    }
+
+    GEMMHost(const string & xclbin, const string & kernelName, unsigned ddrBank, const string &device) : XHost<HType> ( xclbin, kernelName, ddrBank, device)
     {
         void *aligned_mem = nullptr;
         assert(!posix_memalign(&aligned_mem, PAGE_SIZE, INSTR_BUF_SIZE));
         _instrBuf = shared_ptr<char>((char*) aligned_mem);
         memset(_instrBuf.get(), 0, INSTR_BUF_SIZE);
         _instr_offset = 0;
-        this->_cl_instr_buf = this->_fpga->copyToFpga(_instrBuf.get(), INSTR_BUF_SIZE,
+        this->_cl_instr_buf = this->_fpga_stream->copyToFpga(_instrBuf.get(), INSTR_BUF_SIZE,
                 true);
         xclGetMemObjDeviceAddress(this->_cl_instr_buf.get(),
                 boost::compute::system::default_device().get(),
@@ -60,7 +87,7 @@ public:
 
         assert(!posix_memalign(&aligned_mem, PAGE_SIZE, KERN_DBG_BUF_SIZE));
         _kernDbgBuf = shared_ptr<char>((char*) aligned_mem);
-        _cl_kern_dbg_buf = this->_fpga->copyToFpga(_kernDbgBuf.get(),
+        _cl_kern_dbg_buf = this->_fpga_stream->copyToFpga(_kernDbgBuf.get(),
                 KERN_DBG_BUF_SIZE, true);
     }
 
@@ -123,8 +150,8 @@ public:
 
     virtual void Execute( bool sync_exec = true) {
         XTimer t;
-        this->_fpga->copyToFpga(this->_cl_instr_buf, false);
-        this->_fpga->execKernel(this->_cl_instr_buf, sync_exec);
+        this->_fpga_stream->copyToFpga(this->_cl_instr_buf, false);
+        this->_fpga_stream->execKernel(this->_cl_instr_buf, sync_exec);
         memset(this->_instrBuf.get(), 0, PAGE_SIZE);
         this->_instr_offset = 0;
 #ifdef GEMX_PERF_DBG

@@ -29,51 +29,41 @@ public:
 
 
 //Base address will be the instruction memory region
-class XCL_FPGA {
+class XStream {
 public:
-    XCL_FPGA() = delete;
-    XCL_FPGA(const string & xclbin, const string & kernelName, const vector<unsigned> & ddrBanks) {
-        loadXclbin(xclbin, kernelName);
-        _ddrbanks = ddrBanks;
+    XStream() = delete;
+    XStream(const boost::compute::program &p, const string & kernelName, unsigned ddrBank)
+    {
+        _ddrbank = ddrBank;
+         m_Kernel = std::move(boost::compute::kernel(p, kernelName));
+         // Create the OpenCL context to attach resources on the device
+         // Create the OpenCL command queue to control the device
+         //m_CommandQueue = move(boost::compute::system::default_queue());
+         //boost::compute::command_queue queue(boost::compute::system::default_context(), boost::compute::system::default_device(), CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE | CL_QUEUE_PROFILING_ENABLE);
+         boost::compute::command_queue queue(
+                 boost::compute::system::default_context(),
+                 boost::compute::system::default_device() /* CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE*/);
+         m_CommandQueue = move(queue);
     }
 
-    ~XCL_FPGA() {
+    ~XStream() {
     }
 
-    void loadXclbin(string p_XclbinFile, string p_KernelName) {
-        // https://gitenterprise.xilinx.com/rkeryell/heterogeneous_examples/blob/master/vector_add/SDAccel-Boost.Compute/vector_add.cpp
-
-        // Create the OpenCL context to attach resources on the device
-        m_Context = move(boost::compute::system::default_context());
-        // Create the OpenCL command queue to control the device
-        //m_CommandQueue = move(boost::compute::system::default_queue());
-        //boost::compute::command_queue queue(boost::compute::system::default_context(), boost::compute::system::default_device(), CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE | CL_QUEUE_PROFILING_ENABLE);
-        boost::compute::command_queue queue(
-                boost::compute::system::default_context(),
-                boost::compute::system::default_device() /* CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE*/);
-        m_CommandQueue = move(queue);
-        // Construct an OpenCL program from the precompiled kernel file
-        m_Program = move(
-                boost::compute::program::create_with_binary_file(p_XclbinFile,
-                        m_Context));
-        m_Program.build();
-
-        m_Kernel = move(boost::compute::kernel(m_Program, p_KernelName));
-    }
-
-    boost::compute::buffer createBuf(void *ptr, size_t sz_bytes) {
+    boost::compute::buffer createBuf(void *ptr, size_t sz_bytes)
+    {
         cl_mem_ext_ptr_t l_bufExt;
         //l_bufExt.obj = NULL;
         l_bufExt.param = 0;
-        l_bufExt.flags = _ddrbanks[0];
+        l_bufExt.flags = _ddrbank;
         l_bufExt.obj = ptr;
         // Buffers
-        return boost::compute::buffer(m_Context, sz_bytes,
+        return boost::compute::buffer(boost::compute::system::default_context(), sz_bytes,
                 CL_MEM_USE_HOST_PTR | CL_MEM_READ_WRITE | CL_MEM_EXT_PTR_XILINX,
                 &l_bufExt);
     }
 
-    bool copyToFpga(const boost::compute::buffer & buf, bool sync_send) {
+    bool copyToFpga(const boost::compute::buffer & buf, bool sync_send)
+    {
         boost::compute::event l_event;
         //cout << "copyToFPGA" << endl;
         // Send the input data to the accelerator
@@ -83,37 +73,39 @@ public:
         if (sync_send){
             l_event.wait();
         } else{
-            m_waitInput.insert(l_event);
+            _waitInput.insert(l_event);
         }
         return true;
     }
 
-    ///////////////////////////////////////////////////////////////////////////
     boost::compute::buffer copyToFpga(void * buf, size_t sz_bytes,
-            bool sync_send = false) {
+            bool sync_send = false)
+    {
         boost::compute::buffer cl_buf = createBuf(buf, sz_bytes);
         copyToFpga(cl_buf, sync_send);
         return cl_buf;
     }
 
-    void copyFromFpga(const boost::compute::buffer & buf, bool sync_exec = true) {
+    void copyFromFpga(const boost::compute::buffer & buf, bool sync_exec = true)
+    {
         //cout << "copyFromFPGA" << endl;
         XTimer t;
         boost::compute::event l_readEvents =
                 m_CommandQueue.enqueue_migrate_memory_objects(1, &(buf.get()),
-                        CL_MIGRATE_MEM_OBJECT_HOST, m_waitOutput);
+                        CL_MIGRATE_MEM_OBJECT_HOST, _waitOutput);
         //l_readEvents.wait();
         if ( sync_exec ){
             l_readEvents.wait();
-            m_waitOutput.clear();
+            _waitOutput.clear();
         } else{
-            m_waitOutput.insert(l_readEvents);
+            _waitOutput.insert(l_readEvents);
         }
 #ifdef GEMX_PERF_DBG
         cout << "copyFromFpga: " << t.elapsed() << endl;
 #endif
     }
-    void execKernel(const boost::compute::buffer & instr_buf, bool sync_exec = true) {
+    void execKernel(const boost::compute::buffer & instr_buf, bool sync_exec = true )
+    {
         boost::compute::extents<1> offset { 0 };
         boost::compute::extents<1> global { 1 };
         // Use only 1 CU
@@ -123,16 +115,15 @@ public:
 
         XTimer t;
         //boost::compute::event l_event = m_CommandQueue.enqueue_nd_range_kernel(
-        //        m_Kernel, offset, global, local, m_waitInput);
-        boost::compute::event l_event = m_CommandQueue.enqueue_task(m_Kernel, m_waitInput);
-
+        //        m_Kernel, offset, global, local, _waitInput);
+        boost::compute::event l_event = m_CommandQueue.enqueue_task(m_Kernel, _waitInput);
 
         if ( sync_exec ) {
             l_event.wait();
         } else{
-            m_waitOutput.insert(l_event);
+            _waitOutput.insert(l_event);
         }
-        m_waitInput.clear();
+        _waitInput.clear();
 #ifdef GEMX_PERF_DBG
         cout << "execKernel: " << t.elapsed() << endl;
 #endif
@@ -141,70 +132,63 @@ public:
 
     void wait ()
     {
-        //cout << "out wait sz: " << m_waitOutput.size() << endl;
-        for (size_t i = 0; i < m_waitOutput.size(); i++){
-            //cout << "OpenCL event status: " <<  m_waitOutput[i].status() << endl;
-            m_waitOutput[i].wait();
-            //cout << "OpenCL event status after wait: " <<  m_waitOutput[i].status() << endl;
+        for (size_t i = 0; i < _waitOutput.size(); i++){
+            //cout << "OpenCL event status: " <<  _waitOutput[i].status() << endl;
+            _waitOutput[i].wait();
+            //cout << "OpenCL event status after wait: " <<  _waitOutput[i].status() << endl;
         }
-        m_waitInput.clear();
-        m_waitOutput.clear();
+        _waitInput.clear();
+        _waitOutput.clear();
     }
 
 private:
-    vector<unsigned> _ddrbanks;
-    boost::compute::program m_Program;
+    unsigned _ddrbank;
     boost::compute::kernel m_Kernel;
     boost::compute::context m_Context;
     boost::compute::command_queue m_CommandQueue;
-    boost::compute::wait_list m_waitInput, m_waitOutput;
+    boost::compute::wait_list _waitInput, _waitOutput;
 };
-
 
 template<typename HType>
 class XHost{
 public:
     XHost() = delete;
-    XHost ( const string & xclbin, const string & kernelName, const string &device)
+
+    XHost ( const string & xclbin, const string & kernelName, unsigned ddrBank, const string &device)
     {
-        vector<unsigned> ddrBanks = this->getDDRBankFlags(device);
-        _fpga = shared_ptr<XCL_FPGA>(new XCL_FPGA(xclbin, kernelName,ddrBanks));
+        //_fpga_stream.resize(nPE);
+        const boost::compute::program * p = loadxclbin(xclbin);
+        //vector<unsigned> ddrBanks = this->getDDRBankFlags(device);
+        //cout << "Create XStream with program " << p << endl;
+        _fpga_stream = shared_ptr<XStream>(new XStream(*p, kernelName, ddrBank));
     }
 
     virtual ~XHost(){}
-    virtual vector<unsigned> getDDRBankFlags(const string & device){
-            vector<unsigned>ddrBanks;
 
-            unsigned ddr_flags;
-            if ( device == "ku115"){
-                ddrBanks = {XCL_MEM_DDR_BANK0, XCL_MEM_DDR_BANK2, XCL_MEM_DDR_BANK1, XCL_MEM_DDR_BANK3};
-            }
-            else if( device == "kcu1500" || device == "vcu1525"){
-                ddrBanks = {XCL_MEM_DDR_BANK0, XCL_MEM_DDR_BANK1, XCL_MEM_DDR_BANK2, XCL_MEM_DDR_BANK3};
-            }
-            else if ( device == "vu9p"){
-                ddrBanks = {XCL_MEM_DDR_BANK0, XCL_MEM_DDR_BANK3, XCL_MEM_DDR_BANK2, XCL_MEM_DDR_BANK1};
-            }
-            else if ( device == "vu9pf1"){
-                ddrBanks = {XCL_MEM_DDR_BANK3, XCL_MEM_DDR_BANK2, XCL_MEM_DDR_BANK0, XCL_MEM_DDR_BANK1};
-            }
-            else{
-                cerr << "Unsupported device! Options are ku115, kcu1500, vu9p, vu9pf1, vcu1525" << endl;
-                assert( device == "ku115" || device == "kcu1500" || device == "vu9p" || device == "vu9pf1" || device == "vcu1525");
-            }
-            return ddrBanks;
+    // https://gitenterprise.xilinx.com/rkeryell/heterogeneous_examples/blob/master/vector_add/SDAccel-Boost.Compute/vector_add.cpp
+    // Construct an OpenCL program from the precompiled kernel file
+    const boost::compute::program* loadxclbin (const string & xclbin)
+    {
+        static boost::compute::program p = move(
+                boost::compute::program::create_with_binary_file(xclbin,
+                        boost::compute::system::default_context()));
+        p.build();
+        return &p;
     }
+
     virtual void Execute( bool sync_exec = true) = 0;
 
     bool AddMat(const HType & handle, void * mat_ptr, unsigned long long buf_sz) {
-        if (_hostMat.find(handle) == _hostMat.end()) {
-            _hostMat[handle] = mat_ptr;
-            _hostMatSz[handle] = buf_sz;
+        auto &h = _hostMat;
+        auto &hz = _hostMatSz;
+        if (h.find(handle) == h.end()) {
+            h[handle] = mat_ptr;
+            hz[handle] = buf_sz;
             return true;
         }
-        else if (_hostMatSz[handle] != buf_sz ){
-            _hostMat[handle] = mat_ptr;
-            _hostMatSz[handle] = buf_sz;
+        else if (hz[handle] != buf_sz ){
+            h[handle] = mat_ptr;
+            hz[handle] = buf_sz;
             this->_devHandle.erase(handle);
             //cout << "Erasing devhandle!" << endl;
             return true;
@@ -214,18 +198,21 @@ public:
     }
 
     void * GetMat(const HType & handle,
-            bool queryFPGA = false, bool sync_get = true) {
+            bool queryFPGA = false, bool sync_get = true)
+    {
+        auto& h = _hostMat;
         void * ret_ptr = nullptr;
-        if (_hostMat.find(handle) != _hostMat.end()) {
+        if (h.find(handle) != h.end()) {
             if (queryFPGA)
                 GetFromFPGA(handle, sync_get);
-            ret_ptr = _hostMat[handle];
+            ret_ptr = h[handle];
         }
         return ret_ptr;
     }
 
-    void Wait(){
-        _fpga->wait();
+    void Wait()
+    {
+        _fpga_stream->wait();
     }
 
     void SendToFPGA(const HType & handle, void * mat_ptr, unsigned long long buf_sz,
@@ -236,13 +223,14 @@ public:
 
     void SendToFPGA(const HType & handle, bool sync_send = false) {
         XTimer t;
-        assert(_hostMat.find(handle) != _hostMat.end());
+        auto &h = _hostMat;
+        auto &d = _devHandle;
+        assert(h.find(handle) != h.end());
 
-        //shared_ptr < Mat<T> > mat = _hostMat[handle];
-        if (this->_devHandle.find(handle) != this->_devHandle.end()) {
-            _fpga->copyToFpga(this->_devHandle[handle], sync_send);
+        if (d.find(handle) != d.end()) {
+            _fpga_stream->copyToFpga(d[handle], sync_send);
         } else {
-            this->_devHandle[handle] = _fpga->copyToFpga(_hostMat[handle], _hostMatSz[handle], sync_send);
+            d[handle] = _fpga_stream->copyToFpga(h[handle], _hostMatSz[handle], sync_send);
         }
 #ifdef GEMX_PERF_DBG
         cout << "SendToFPGA: " << t.elapsed() << endl;
@@ -251,8 +239,9 @@ public:
 
     void GetFromFPGA(const HType & handle, bool sync_get) {
         XTimer t;
-        assert(this->_devHandle.find(handle) != this->_devHandle.end());
-        _fpga->copyFromFpga(this->_devHandle[handle], sync_get);
+        auto &d = _devHandle;
+        assert(d.find(handle) != d.end());
+        _fpga_stream->copyFromFpga(d[handle], sync_get);
 #ifdef GEMX_PERF_DBG
         cout << "GetFromFPGA: " << t.elapsed() << endl;
 #endif
@@ -290,7 +279,7 @@ protected:
     unordered_map<HType, void*  > _hostMat;
     unordered_map<HType, unsigned long long > _hostMatSz;
     unordered_map<HType, boost::compute::buffer> _devHandle;
-    shared_ptr<XCL_FPGA> _fpga;
+    shared_ptr<XStream> _fpga_stream;
 };
 
 
