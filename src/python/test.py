@@ -124,5 +124,14 @@ class FcnTest(Test):
       else:
         self.multiply_and_cmp(C_fpga, mat_A, mat_B, bias, m, n, post_scale)
         
+class SpmvTest(Test):
+  def multiply_and_cmp_spmv(self,row,col,data,m,k,nnz,B,C):
+      C_cpu = np.zeros ((m, 1), dtype=np.int16)
+      for i in range(nnz):
+        C_cpu[row[i]] += B[col[i]] * data[i]
+      np.savetxt("C.np", C, fmt="%d")
+      np.savetxt("C_cpu.np", C_cpu, fmt="%d")
+      self.cmp(C, C_cpu)
+        
 class GemmTest(Test):               
   pass

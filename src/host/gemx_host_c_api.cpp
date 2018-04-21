@@ -76,6 +76,16 @@ void MakeGEMMHost(char *xclbin, char * device, unsigned int nPE)
 	}
 }
 
+void MakeSPMVHost(char *xclbin, char * device, unsigned int nPE) {
+  
+  	vector<unsigned> ddr = GEMMHost<short*>::getDDRBankFlags(device);
+	for (unsigned i = 0; i < nPE; i++)
+	{
+		string kName = GEMMHost<short*>::getKernelName(i);
+    	GEMXHostHandle<short*>::Instance().gh_ptr.push_back(shared_ptr< gemx::GEMMHost<short*> > ( new gemx::SPMVHost<short*>(xclbin, kName, ddr[i], device) ));
+	}
+}
+
 void SendToFPGAShrt(short *A, unsigned long long num_elem, unsigned PE, bool sync_send)
 {
     gemx::XTimer t;
@@ -97,6 +107,16 @@ void SendToFPGAInt(int *A, unsigned long long num_elem, unsigned PE,bool sync_se
     GEMXHostProfiler::Instance().func_calls["SendToFPGAInt"]++;
 #endif
 
+}
+
+void SendSpToFpgaShrt(int *row, int *col, double *data, unsigned int m, unsigned int k, unsigned int nnz,void * B, void * C, unsigned PE){
+    gemx::SPMVHost<short*>* spmv_ptr = static_cast< gemx::SPMVHost<short*> *> (GEMXHostHandle<short*>::Instance().gh_ptr[PE].get());
+    spmv_ptr->SendSpToFpga(row,col,data,m,k,nnz,(short*)B,(short*)C);
+}
+
+void SendSpToFpgaInt(int *row, int *col, double *data, unsigned int m, unsigned int k, unsigned int nnz,void * B, void * C, unsigned PE){
+    gemx::SPMVHost<short*>* spmv_ptr = static_cast< gemx::SPMVHost<short*> *> (GEMXHostHandle<short*>::Instance().gh_ptr[PE].get());
+    spmv_ptr->SendSpToFpgaInt(row,col,data,m,k,nnz,(int*)B,(int*)C);
 }
 
 /*
