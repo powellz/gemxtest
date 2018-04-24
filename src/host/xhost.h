@@ -27,6 +27,18 @@ public:
     virtual char* asByteArray() = 0;
 };
 
+class MtxRow {
+  private:
+    unsigned int m_Row, m_Col ;
+    double m_Val;
+  public:
+    MtxRow() : m_Row(0), m_Col(0), m_Val(0) {}
+    MtxRow(double p_Val, unsigned int p_Row, unsigned int p_Col)
+      : m_Row(p_Row), m_Col(p_Col), m_Val(p_Val) {}
+    unsigned int getRow() {return m_Row;}
+    unsigned int getCol() {return m_Col;}
+    double getVal() {return m_Val;}
+};
 
 //Base address will be the instruction memory region
 class XStream {
@@ -209,10 +221,15 @@ public:
         }
         return ret_ptr;
     }
-
+    
     void Wait()
     {
         _fpga_stream->wait();
+    }
+    
+    void SendSparseToFpga(void * matA, unsigned long long sizeA, bool sync_send = false){
+      this->_hostMatSP = matA;
+      this->_devHandleSP = _fpga_stream->copyToFpga(_hostMatSP, sizeA, sync_send);
     }
 
     void SendToFPGA(const HType & handle, void * mat_ptr, unsigned long long buf_sz,
@@ -279,6 +296,8 @@ protected:
     unordered_map<HType, void*  > _hostMat;
     unordered_map<HType, unsigned long long > _hostMatSz;
     unordered_map<HType, boost::compute::buffer> _devHandle;
+    void* _hostMatSP;
+    boost::compute::buffer _devHandleSP;
     shared_ptr<XStream> _fpga_stream;
 };
 

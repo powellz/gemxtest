@@ -11,9 +11,11 @@ class GEMXManager:
     self._lib = cdll.LoadLibrary(libFile)
     self._lib.MakeFCNHost.argtypes = [c_char_p, c_char_p,c_uint]
     self._lib.MakeGEMMHost.argtypes = [c_char_p, c_char_p, c_uint]
+    self._lib.MakeSPMVHost.argtypes = [c_char_p, c_char_p, c_uint]
                 
     self._lib.SendToFPGAShrt.argtypes = [np.ctypeslib.ndpointer(c_short, flags="C_CONTIGUOUS"), c_ulonglong, c_uint, c_bool]
     self._lib.SendToFPGAInt.argtypes = [np.ctypeslib.ndpointer(c_int, flags="C_CONTIGUOUS"), c_ulonglong, c_uint, c_bool]
+    
     
     self._lib.AddFCNOp.argtypes = [np.ctypeslib.ndpointer(c_short, flags="C_CONTIGUOUS"),  
                                    np.ctypeslib.ndpointer(c_short, flags="C_CONTIGUOUS"), 
@@ -26,12 +28,32 @@ class GEMXManager:
                                    np.ctypeslib.ndpointer(c_short, flags="C_CONTIGUOUS"), 
                                    np.ctypeslib.ndpointer(c_int, flags="C_CONTIGUOUS"), 
                                    c_uint, c_uint, c_uint, c_int, c_int, c_uint]
+                                   
+    self._lib.SendSpToFpgaShrt.argtypes = [np.ctypeslib.ndpointer(c_int, flags="C_CONTIGUOUS"),
+                                       np.ctypeslib.ndpointer(c_int, flags="C_CONTIGUOUS"),
+                                       np.ctypeslib.ndpointer(c_double, flags="C_CONTIGUOUS"),c_uint,c_uint,c_uint,
+                                       np.ctypeslib.ndpointer(c_short, flags="C_CONTIGUOUS"),
+                                       np.ctypeslib.ndpointer(c_short, flags="C_CONTIGUOUS"),c_uint]
+    self._lib.SendSpToFpgaInt.argtypes = [np.ctypeslib.ndpointer(c_int, flags="C_CONTIGUOUS"),
+                                       np.ctypeslib.ndpointer(c_int, flags="C_CONTIGUOUS"),
+                                       np.ctypeslib.ndpointer(c_double, flags="C_CONTIGUOUS"),c_uint,c_uint,c_uint,
+                                       np.ctypeslib.ndpointer(c_int32, flags="C_CONTIGUOUS"),
+                                       np.ctypeslib.ndpointer(c_int32, flags="C_CONTIGUOUS"),c_uint]
+    self._lib.SendSpToFpgaFloat.argtypes = [np.ctypeslib.ndpointer(c_int, flags="C_CONTIGUOUS"),
+                                       np.ctypeslib.ndpointer(c_int, flags="C_CONTIGUOUS"),
+                                       np.ctypeslib.ndpointer(c_double, flags="C_CONTIGUOUS"),c_uint,c_uint,c_uint,
+                                       np.ctypeslib.ndpointer(c_float, flags="C_CONTIGUOUS"),
+                                       np.ctypeslib.ndpointer(c_float, flags="C_CONTIGUOUS"),c_uint]
     self._lib.AddFCNOp.restype = c_bool
     self._lib.AddGEMMOp.restype = c_bool
     
     self._lib.Execute.argtypes = [c_bool, c_uint]
     self._lib.GetFromFPGA.argtypes = [np.ctypeslib.ndpointer(c_short, flags="C_CONTIGUOUS"), c_uint, c_bool]
     self._lib.GetFromFPGA.restype = c_void_p
+    self._lib.GetFromFPGAInt.argtypes = [np.ctypeslib.ndpointer(c_int, flags="C_CONTIGUOUS"), c_uint, c_bool]
+    self._lib.GetFromFPGAInt.restype = c_void_p
+    self._lib.GetFromFPGAFloat.argtypes = [np.ctypeslib.ndpointer(c_float, flags="C_CONTIGUOUS"), c_uint, c_bool]
+    self._lib.GetFromFPGAFloat.restype = c_void_p
     self._lib.Wait.argtypes = [c_uint]
     self._lib.PrintStats.argtypes = []    
     self._lib.GetFreq.argtypes = []  
@@ -45,6 +67,11 @@ class GEMXManager:
      b_xclbin = xclbin.encode('utf-8')
      b_device = deviceName.encode('utf-8')
      self._lib.MakeGEMMHost(b_xclbin, b_device,numHandles)
+     
+  def createSPMVHandle (self, xclbin, deviceName, numHandles):
+     b_xclbin = xclbin.encode('utf-8')
+     b_device = deviceName.encode('utf-8')
+     self._lib.MakeSPMVHost(b_xclbin, b_device,numHandles)
      
   def addFCNOp(self, A, B, C, bias, postScale, postShift, PReLUScale, PReLUAlpha, PE):
     return self._lib.AddFCNOp(A,B, C, bias, c_uint(A.shape[0]), c_uint( A.shape[1] ), c_uint( B.shape[1]), c_int(postScale), c_int(postShift), c_short(PReLUScale), c_short(PReLUAlpha), c_uint(PE))
@@ -61,17 +88,33 @@ class GEMXManager:
   def sendMat ( self, A, PE, sync_send = False):
     if A.flags['C_CONTIGUOUS'] == False:
         A = np.ascontiguousarray(A)
-        print ("Warning: not C_CONTIGUOUS, performance will be affected")
-        
+        print ("Warning: not C_CONTIGUOUS, performance will be affected")      
     if A.dtype == np.int32:
         self._lib.SendToFPGAInt( A, c_ulonglong(A.size), c_uint(PE), sync_send )
     elif A.dtype == np.int16:
         self._lib.SendToFPGAShrt( A, c_ulonglong(A.size), c_uint(PE), sync_send )        
     else:
         raise TypeError("type", A, "not supported")
-    
+        
+  def sendSparse(self,row,col,data,m,k,nnz,B,C,PE):
+     if B.dtype == np.int32:
+        self._lib.SendSpToFpgaInt(row,col,data,m,k,nnz,B,C, c_uint(PE))
+     elif B.dtype == np.int16:
+        self._lib.SendSpToFpgaShrt(row,col,data,m,k,nnz,B,C, c_uint(PE))    
+     elif B.dtype == np.float32:
+        self._lib.SendSpToFpgaFloat(row,col,data,m,k,nnz,B,C, c_uint(PE))
+     else:
+        raise TypeError("type", A, "not supported") 
+          
   def getMat(self, A, PE=0, sync_get = True):
-    self._lib.GetFromFPGA( A, PE, sync_get )
+    if A.dtype == np.int16:
+        self._lib.GetFromFPGA( A, PE, sync_get )
+    elif A.dtype == np.int32:
+        self._lib.GetFromFPGAInt( A, PE, sync_get )
+    elif A.dtype == np.float32:
+        self._lib.GetFromFPGAFloat( A, PE, sync_get )
+    else:
+        raise TypeError("type", A, "not supported") 
     
   def printStats(self):
     self._lib.PrintStats()
@@ -83,6 +126,9 @@ _gemxManager = None
 
 def sendMat ( A,PE=0,sync_send=False):
     _gemxManager.sendMat(A,PE,sync_send)
+    
+def sendSparse (row,col,data,m,k,nnz,B,C,PE=0):
+    _gemxManager.sendSparse(row,col,data,m,k,nnz,B,C,PE)
 
 def getMat (A, PE=0, sync_get = True):
     return _gemxManager.getMat(A, PE,sync_get)
@@ -112,6 +158,10 @@ def createFCNHandle(xclbin, libFile, deviceName, numPE=1):
 def createGEMMHandle(xclbin, libFile, deviceName, numPE=1):
   createManager (libFile)
   return _gemxManager.createGEMMHandle(xclbin, deviceName, numPE)
+  
+def createSPMVHandle(xclbin, libFile, deviceName, numPE=1):
+  createManager (libFile)
+  return _gemxManager.createSPMVHandle(xclbin, deviceName, numPE)
 
 def printStats():
   return _gemxManager.printStats()
