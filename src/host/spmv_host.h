@@ -54,132 +54,16 @@ public:
         return false;
     }
     
-    virtual void SendSpToFpga(int * row, int * col, double * data, unsigned int m, unsigned int k, unsigned int nnz,const HType & B, const HType & C){	
-      vector<MtxRow> A;
-      for (unsigned int i = 0; i<nnz; ++i){
-	MtxRow l_row(row[i],col[i],data[i]);
-	A.push_back(l_row);
-      }
-      
-      this->SendSparseToFpga(&A,(unsigned long long)(nnz+nnz*2*(sizeof(int)/sizeof(short)))*sizeof(short));
-      this->SendToFPGA((short*)B, B,(unsigned long long) sizeof(short) * k);
-      this->SendToFPGA((short*)C, C,(unsigned long long) sizeof(short) * m);
-      
-       unsigned long long A_off = 0, B_off = 0, C_off = 0;
-
-        xclGetMemObjDeviceAddress(this->_devHandleSP.get(),
-                boost::compute::system::default_device().get(),
-                sizeof(unsigned long long), &A_off);
-        xclGetMemObjDeviceAddress(this->_devHandle[B].get(),
-                boost::compute::system::default_device().get(),
-                sizeof(unsigned long long), &B_off);
-        xclGetMemObjDeviceAddress(this->_devHandle[C].get(),
-                boost::compute::system::default_device().get(),
-                sizeof(unsigned long long), &C_off);
-
-        cout << "A_dev_addr: " << A_off << " B_dev_addr: " << B_off << " C_dev_addr: " << C_off << endl;
-        assert(A_off > this->_ddrDeviceBaseAddr);
-        assert(B_off > this->_ddrDeviceBaseAddr);
-        assert(C_off > this->_ddrDeviceBaseAddr);
-        A_off -= this->_ddrDeviceBaseAddr;
-        B_off -= this->_ddrDeviceBaseAddr;
-        C_off -= this->_ddrDeviceBaseAddr;
-
-        assert(A_off % this->PAGE_SIZE == 0);  
-        assert(B_off % this->PAGE_SIZE == 0);
-        assert(C_off % this->PAGE_SIZE == 0);
-
-        A_off /= this->PAGE_SIZE;
-        B_off /= this->PAGE_SIZE;
-        C_off /= this->PAGE_SIZE;
-
-        SpmvArgs args(A_off, B_off, C_off, m, k, nnz);
-        this->AddInstr (&args);
+    virtual void SendSpToFpga(int * row, int * col, double * data, unsigned int m, unsigned int k, unsigned int nnz, short * B, short * C){	
+      cout << "SPMV API is not finished yet\n" << endl;
     }
-    
+        
     virtual void SendSpToFpgaInt(int * row, int * col, double * data, unsigned int m, unsigned int k, unsigned int nnz, int * B, int * C){	
-      vector<MtxRow> A;
-      for (unsigned int i = 0; i<nnz; ++i){
-	MtxRow l_row(row[i],col[i],data[i]);
-	A.push_back(l_row);
-      }
-      this->SendSparseToFpga(&A,(unsigned long long)(nnz+nnz*2*(sizeof(int)/sizeof(int)))*sizeof(int));
-      this->SendToFPGA((short*)B, B,(unsigned long long) sizeof(int) * k);
-      this->SendToFPGA((short*)C, C,(unsigned long long) sizeof(int) * m);
-      
-       unsigned long long A_off = 0, B_off = 0, C_off = 0;
-
-        xclGetMemObjDeviceAddress(this->_devHandleSP.get(),
-                boost::compute::system::default_device().get(),
-                sizeof(unsigned long long), &A_off);
-        xclGetMemObjDeviceAddress(this->_devHandle[(short*)B].get(),
-                boost::compute::system::default_device().get(),
-                sizeof(unsigned long long), &B_off);
-        xclGetMemObjDeviceAddress(this->_devHandle[(short*)C].get(),
-                boost::compute::system::default_device().get(),
-                sizeof(unsigned long long), &C_off);
-
-        cout << "A_dev_addr: " << A_off << " B_dev_addr: " << B_off << " C_dev_addr: " << C_off << endl;
-        assert(A_off > this->_ddrDeviceBaseAddr);
-        assert(B_off > this->_ddrDeviceBaseAddr);
-        assert(C_off > this->_ddrDeviceBaseAddr);
-        A_off -= this->_ddrDeviceBaseAddr;
-        B_off -= this->_ddrDeviceBaseAddr;
-        C_off -= this->_ddrDeviceBaseAddr;
-
-        assert(A_off % this->PAGE_SIZE == 0);  
-        assert(B_off % this->PAGE_SIZE == 0);
-        assert(C_off % this->PAGE_SIZE == 0);
-
-        A_off /= this->PAGE_SIZE;
-        B_off /= this->PAGE_SIZE;
-        C_off /= this->PAGE_SIZE;
-
-        SpmvArgs args(A_off, B_off, C_off, m, k, nnz);
-        this->AddInstr (&args);
+      cout << "SPMV API is not finished yet\n" << endl;
     }
     
      virtual void SendSpToFpgaFloat(int * row, int * col, double * data, unsigned int m, unsigned int k, unsigned int nnz, float * B, float * C){	
-      vector<MtxRow> A;
-      for (unsigned int i = 0; i<nnz; ++i){
-	MtxRow l_row(row[i],col[i],data[i]);
-	A.push_back(l_row);
-      }
-      
-      this->SendSparseToFpga(&A,(unsigned long long)(nnz+nnz*2*(sizeof(int)/sizeof(float)))*sizeof(float));
-      this->SendToFPGA((short*)B, B,(unsigned long long) sizeof(float) * k);
-      this->SendToFPGA((short*)C, C,(unsigned long long) sizeof(float) * m);
-      
-       unsigned long long A_off = 0, B_off = 0, C_off = 0;
-
-        xclGetMemObjDeviceAddress(this->_devHandleSP.get(),
-                boost::compute::system::default_device().get(),
-                sizeof(unsigned long long), &A_off);
-        xclGetMemObjDeviceAddress(this->_devHandle[(short*)B].get(),
-                boost::compute::system::default_device().get(),
-                sizeof(unsigned long long), &B_off);
-        xclGetMemObjDeviceAddress(this->_devHandle[(short*)C].get(),
-                boost::compute::system::default_device().get(),
-                sizeof(unsigned long long), &C_off);
-
-        cout << "A_dev_addr: " << A_off << " B_dev_addr: " << B_off << " C_dev_addr: " << C_off << endl;
-        assert(A_off > this->_ddrDeviceBaseAddr);
-        assert(B_off > this->_ddrDeviceBaseAddr);
-        assert(C_off > this->_ddrDeviceBaseAddr);
-        A_off -= this->_ddrDeviceBaseAddr;
-        B_off -= this->_ddrDeviceBaseAddr;
-        C_off -= this->_ddrDeviceBaseAddr;
-
-        assert(A_off % this->PAGE_SIZE == 0);  
-        assert(B_off % this->PAGE_SIZE == 0);
-        assert(C_off % this->PAGE_SIZE == 0);
-
-        A_off /= this->PAGE_SIZE;
-        B_off /= this->PAGE_SIZE;
-        C_off /= this->PAGE_SIZE;
-
-        SpmvArgs args(A_off, B_off, C_off, m, k, nnz);
-        this->AddInstr (&args);
+      cout << "SPMV API is not finished yet\n" << endl;
     }
     
 
