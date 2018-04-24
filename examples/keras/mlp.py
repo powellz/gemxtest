@@ -172,7 +172,7 @@ if  __name__ == '__main__':
     parser = argparse.ArgumentParser(description='GEMX')
     parser.add_argument('--data', required = True, help='inference data file')
     parser.add_argument('--model', required = True, help='model')
-    parser.add_argument('--device', required = True, choices=['cpu', 'ku115','kcu1500','vu9p', 'vcu1525', 'vu9pf1'], help='supported FPGA devices')    
+    parser.add_argument('--device', required = True, choices=['cpu', 'kcu1500','vcu1525', 'vu9pf1'], help='supported FPGA devices')    
     parser.add_argument('--xclbin', help='file path to FPGA bitstream')
     parser.add_argument('--gemxlib', help='file path to GEMX host code shared library')
     parser.add_argument('-k', '--kernelName', default="gemxKernel_0", help='FPGA kernel name')  
