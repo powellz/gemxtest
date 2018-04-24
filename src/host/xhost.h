@@ -221,14 +221,15 @@ public:
         }
         return ret_ptr;
     }
-
+    
     void Wait()
     {
         _fpga_stream->wait();
     }
     
     void SendSparseToFpga(void * matA, unsigned long long sizeA, bool sync_send = false){
-      this->_devHandleSP = _fpga_stream->copyToFpga(matA, sizeA, sync_send);
+      this->_hostMatSP = matA;
+      this->_devHandleSP = _fpga_stream->copyToFpga(_hostMatSP, sizeA, sync_send);
     }
 
     void SendToFPGA(const HType & handle, void * mat_ptr, unsigned long long buf_sz,
@@ -295,6 +296,7 @@ protected:
     unordered_map<HType, void*  > _hostMat;
     unordered_map<HType, unsigned long long > _hostMatSz;
     unordered_map<HType, boost::compute::buffer> _devHandle;
+    void* _hostMatSP;
     boost::compute::buffer _devHandleSP;
     shared_ptr<XStream> _fpga_stream;
 };

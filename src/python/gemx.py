@@ -16,6 +16,7 @@ class GEMXManager:
     self._lib.SendToFPGAShrt.argtypes = [np.ctypeslib.ndpointer(c_short, flags="C_CONTIGUOUS"), c_ulonglong, c_uint, c_bool]
     self._lib.SendToFPGAInt.argtypes = [np.ctypeslib.ndpointer(c_int, flags="C_CONTIGUOUS"), c_ulonglong, c_uint, c_bool]
     
+    
     self._lib.AddFCNOp.argtypes = [np.ctypeslib.ndpointer(c_short, flags="C_CONTIGUOUS"),  
                                    np.ctypeslib.ndpointer(c_short, flags="C_CONTIGUOUS"), 
                                    np.ctypeslib.ndpointer(c_short, flags="C_CONTIGUOUS"), 
@@ -30,12 +31,17 @@ class GEMXManager:
                                    
     self._lib.SendSpToFpgaShrt.argtypes = [np.ctypeslib.ndpointer(c_int, flags="C_CONTIGUOUS"),
                                        np.ctypeslib.ndpointer(c_int, flags="C_CONTIGUOUS"),
-                                       np.ctypeslib.ndpointer(c_int64, flags="C_CONTIGUOUS"),c_uint,c_uint,c_uint,
+                                       np.ctypeslib.ndpointer(c_double, flags="C_CONTIGUOUS"),c_uint,c_uint,c_uint,
                                        np.ctypeslib.ndpointer(c_short, flags="C_CONTIGUOUS"),
                                        np.ctypeslib.ndpointer(c_short, flags="C_CONTIGUOUS"),c_uint]
     self._lib.SendSpToFpgaInt.argtypes = [np.ctypeslib.ndpointer(c_int, flags="C_CONTIGUOUS"),
                                        np.ctypeslib.ndpointer(c_int, flags="C_CONTIGUOUS"),
-                                       np.ctypeslib.ndpointer(c_int64, flags="C_CONTIGUOUS"),c_uint,c_uint,c_uint,
+                                       np.ctypeslib.ndpointer(c_double, flags="C_CONTIGUOUS"),c_uint,c_uint,c_uint,
+                                       np.ctypeslib.ndpointer(c_int32, flags="C_CONTIGUOUS"),
+                                       np.ctypeslib.ndpointer(c_int32, flags="C_CONTIGUOUS"),c_uint]
+    self._lib.SendSpToFpgaFloat.argtypes = [np.ctypeslib.ndpointer(c_int, flags="C_CONTIGUOUS"),
+                                       np.ctypeslib.ndpointer(c_int, flags="C_CONTIGUOUS"),
+                                       np.ctypeslib.ndpointer(c_double, flags="C_CONTIGUOUS"),c_uint,c_uint,c_uint,
                                        np.ctypeslib.ndpointer(c_float, flags="C_CONTIGUOUS"),
                                        np.ctypeslib.ndpointer(c_float, flags="C_CONTIGUOUS"),c_uint]
     self._lib.AddFCNOp.restype = c_bool
@@ -44,6 +50,10 @@ class GEMXManager:
     self._lib.Execute.argtypes = [c_bool, c_uint]
     self._lib.GetFromFPGA.argtypes = [np.ctypeslib.ndpointer(c_short, flags="C_CONTIGUOUS"), c_uint, c_bool]
     self._lib.GetFromFPGA.restype = c_void_p
+    self._lib.GetFromFPGAInt.argtypes = [np.ctypeslib.ndpointer(c_int, flags="C_CONTIGUOUS"), c_uint, c_bool]
+    self._lib.GetFromFPGAInt.restype = c_void_p
+    self._lib.GetFromFPGAFloat.argtypes = [np.ctypeslib.ndpointer(c_float, flags="C_CONTIGUOUS"), c_uint, c_bool]
+    self._lib.GetFromFPGAFloat.restype = c_void_p
     self._lib.Wait.argtypes = [c_uint]
     self._lib.PrintStats.argtypes = []    
     self._lib.GetFreq.argtypes = []  
@@ -78,8 +88,7 @@ class GEMXManager:
   def sendMat ( self, A, PE, sync_send = False):
     if A.flags['C_CONTIGUOUS'] == False:
         A = np.ascontiguousarray(A)
-        print ("Warning: not C_CONTIGUOUS, performance will be affected")
-        
+        print ("Warning: not C_CONTIGUOUS, performance will be affected")      
     if A.dtype == np.int32:
         self._lib.SendToFPGAInt( A, c_ulonglong(A.size), c_uint(PE), sync_send )
     elif A.dtype == np.int16:
@@ -91,12 +100,21 @@ class GEMXManager:
      if B.dtype == np.int32:
         self._lib.SendSpToFpgaInt(row,col,data,m,k,nnz,B,C, c_uint(PE))
      elif B.dtype == np.int16:
-        self._lib.SendSpToFpgaShrt(row,col,data,m,k,nnz,B,C, c_uint(PE))        
+        self._lib.SendSpToFpgaShrt(row,col,data,m,k,nnz,B,C, c_uint(PE))    
+     elif B.dtype == np.float32:
+        self._lib.SendSpToFpgaFloat(row,col,data,m,k,nnz,B,C, c_uint(PE))
      else:
         raise TypeError("type", A, "not supported") 
-  
+          
   def getMat(self, A, PE=0, sync_get = True):
-    self._lib.GetFromFPGA( A, PE, sync_get )
+    if A.dtype == np.int16:
+        self._lib.GetFromFPGA( A, PE, sync_get )
+    elif A.dtype == np.int32:
+        self._lib.GetFromFPGAInt( A, PE, sync_get )
+    elif A.dtype == np.float32:
+        self._lib.GetFromFPGAFloat( A, PE, sync_get )
+    else:
+        raise TypeError("type", A, "not supported") 
     
   def printStats(self):
     self._lib.PrintStats()
