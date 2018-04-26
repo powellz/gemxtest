@@ -629,6 +629,7 @@ class SpmvCoo
 					t_IdxType l_row = l_val.getRow();
 					unsigned int l_rowGroup = l_val.getRowIndex();
 					p_outS[l_rowGroup].write(l_val);
+					//p_outS[l_id % t_InterLeaves].write(l_val);
 					l_activity = true;
 				}
 				else {
@@ -642,13 +643,67 @@ class SpmvCoo
 			}
 			p_outCntS.write(true);
 		}
+	void
+	aggCUnit(SpmColStreamType p_inS[t_InterLeaves], ControlStreamType &p_inCntS,
+					SpmColStreamType p_outS[t_InterLeaves], ControlStreamType &p_outCntS) {
+		bool l_exit = false;
+		bool l_preDone = false;
+		BoolArr<t_InterLeaves> l_activity(false);
+
+		SpmColType l_aggC[t_InterLeaves];
+		#pragma HLS array_partition variable=l_aggC complete dim=1
+
+		for (int i=0; i<t_InterLeaves; ++i) {
+		#pragma HLS UNROLL 
+			l_aggC[i].getRow()=0;
+			l_aggC[i].getVal()=0;
+		}
+
+		while (!l_exit) {
+		#pragma HLS PIPELINE
+			if (l_preDone && !l_activity.Or()) {
+				l_exit=true;
+			}
+			
+			for (int i=0; i<t_InterLeaves; ++i) {
+			#pragma HLS UNROLL
+				SpmColType l_val;
+				if (p_inS[i].read_nb(l_val)) {
+					if (l_aggC[i].getRow() != l_val.getRow()) {
+						p_outS[i].write(l_aggC[i]);
+						l_aggC[i].getVal() = l_val.getVal();
+						l_aggC[i].getRow() = l_val.getRow();
+					}
+					else {
+						 l_aggC[i].getVal() += l_val.getVal(); 
+					}
+					l_activity[i] = true;
+				}
+				else {
+					l_activity[i] = false;
+				}		
+			}
+			bool l_unused;
+			if (p_inCntS.read_nb(l_unused)) {
+				l_preDone=true;
+			}
+		}
+
+		for (int i=0; i<t_InterLeaves; ++i) {
+		#pragma HLS UNROLL
+			if (l_aggC[i].getVal()!=0) {
+				p_outS[i].write(l_aggC[i]);
+			}
+		}
+		p_outCntS.write(true);
+	}
 
 	void
 	formCUnit(SpmColStreamType p_inS[t_InterLeaves], ControlStreamType &p_inCntS, 
 						SpmCStreamType p_outS[t_UramGroups], ControlStreamType &p_outCntS) {
 		bool l_exit = false;
 		bool l_preDone = false;
-		BoolArr<t_InterLeaves> l_activity(false);
+		BoolArr<t_InterLeaves> l_activity(true);
 		
 		SpmCType l_valC[t_UramGroups];
 		#pragma HLS array_partition variable=l_valC complete dim=1
@@ -661,15 +716,16 @@ class SpmvCoo
 		}
 
 		while (!l_exit){
-		#pragma HLS PIPELINE II=t_UramWidth
+		//#pragma HLS PIPELINE II=t_UramWidth
+		#pragma HLS PIPELINE 
 			if (l_preDone && !l_activity.Or()) {
 				l_exit = true;
 			}
 			//l_activity.Reset();
 
-			for (int i=0; i<t_UramGroups; ++i){
+			for (uint8_t i=0; i<t_UramGroups; ++i){
 			#pragma HLS UNROLL
-				for (int j=0; j<t_UramWidth; ++j){
+				for (uint8_t j=0; j<t_UramWidth; ++j){
 					SpmColType l_val;
 					if (p_inS[i*t_UramWidth+j].read_nb(l_val)){
 						unsigned int l_rowOffset = l_val.getRowOffset();
@@ -720,7 +776,8 @@ class SpmvCoo
 		BoolArr<t_UramGroups> l_activity(true);
 
 		while (!l_exit) {
-		#pragma HLS PIPELINE II=t_InterLeaves
+		//#pragma HLS PIPELINE II=t_InterLeaves
+		#pragma HLS PIPELINE
 	
 			if (l_preDone && !l_activity.Or()) {
 				l_exit = true;
@@ -853,15 +910,24 @@ class SpmvCoo
 		#pragma HLS ARRAY_PARTITION variable=l_cnt2multABs COMPLETE dim=1
 		SpmColStreamType l_spm2interLeaveS[t_NumUramPerDdr];
 		#pragma HLS DATA_PACK variable=l_spm2interLeaveS
-		#pragma HLS STREAM variable=l_spm2interLeaveS depth=t_DepthShallow
+		#pragma HLS STREAM variable=l_spm2interLeaveS depth=t_DepthDeep
 		#pragma HLS ARRAY_PARTITION variable=l_spm2interLeaveS COMPLETE dim=1
 		ControlStreamType l_cnt2interLeaveS[t_NumUramPerDdr];
 		#pragma HLS DATA_PACK variable=l_cnt2interLeaveS
 		#pragma HLS STREAM variable=l_cnt2interLeaveS depth=t_DepthShallow
 		#pragma HLS ARRAY_PARTITION variable=l_cnt2interLeaveS COMPLETE dim=1
+		SpmColStreamType l_spm2aggCs[t_NumUramPerDdr][t_InterLeaves];
+		#pragma HLS DATA_PACK variable=l_spm2aggCs
+		#pragma HLS STREAM variable=l_spm2aggCs depth=t_DepthDeep
+		#pragma HLS ARRAY_PARTITION variable=l_spm2aggCs COMPLETE dim=1
+		#pragma HLS ARRAY_PARTITION variable=l_spm2aggCs COMPLETE dim=2
+		ControlStreamType l_cnt2aggCs[t_NumUramPerDdr];
+		#pragma HLS DATA_PACK variable=l_cnt2aggCs
+		#pragma HLS STREAM variable=l_cnt2aggCs depth=t_DepthShallow
+		#pragma HLS ARRAY_PARTITION variable=l_cnt2aggCs COMPLETE dim=1
 		SpmColStreamType l_spm2formCs[t_NumUramPerDdr][t_InterLeaves];
 		#pragma HLS DATA_PACK variable=l_spm2formCs
-		#pragma HLS STREAM variable=l_spm2formCs depth=t_DepthShallow
+		#pragma HLS STREAM variable=l_spm2formCs depth=t_DepthDeep
 		#pragma HLS ARRAY_PARTITION variable=l_spm2formCs COMPLETE dim=1
 		#pragma HLS ARRAY_PARTITION variable=l_spm2formCs COMPLETE dim=2
 		ControlStreamType l_cnt2formCs[t_NumUramPerDdr];
@@ -896,7 +962,8 @@ class SpmvCoo
 		multAB(l_spm2multABs, l_cnt2multABs, l_spm2interLeaveS, l_cnt2interLeaveS);
 		LOOP_W_RU:for(int b=0; b < t_NumUramPerDdr; ++b) {
 		#pragma HLS UNROLL
-			interLeaveUnit(l_spm2interLeaveS[b], l_cnt2interLeaveS[b], l_spm2formCs[b], l_cnt2formCs[b]);
+			interLeaveUnit(l_spm2interLeaveS[b], l_cnt2interLeaveS[b], l_spm2aggCs[b], l_cnt2aggCs[b]);
+			aggCUnit(l_spm2aggCs[b], l_cnt2aggCs[b], l_spm2formCs[b], l_cnt2formCs[b]);
 			formCUnit(l_spm2formCs[b], l_cnt2formCs[b], l_spm2addCs[b], l_cnt2addCs[b]);
 			addCUnit(l_spm2addCs[b], l_cnt2addCs[b], b);
 		}
