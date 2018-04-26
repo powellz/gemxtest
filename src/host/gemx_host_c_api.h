@@ -17,15 +17,17 @@ void* GetFromFPGAFloat( float *A, unsigned PE, bool sync_get);
 
 void Wait (unsigned PE);
 void PrintStats();
-void SendSpToFpgaShrt(int *row, int *col, double *data, unsigned int m, unsigned int k, unsigned int nnz,void * B, void * C, unsigned PE);
-void SendSpToFpgaInt(int *row, int *col, double *data, unsigned int m, unsigned int k, unsigned int nnz,void * B, void * C, unsigned PE);
-void SendSpToFpgaFloat(int *row, int *col, double *data, unsigned int m, unsigned int k, unsigned int nnz,void * B, void * C, unsigned PE);
+void SendSpToFpgaInt(int *row, int *col, float *data, unsigned int m, unsigned int k, unsigned int nnz,void * B, void * C, unsigned PE);
+void SendSpToFpgaFloat(int *row, int *col, float *data, unsigned int m, unsigned int k, unsigned int nnz,void * B, void * C, unsigned PE);
 bool AddFCNOp( void * A, void * B, void *C, void * bias,  unsigned int m, unsigned int k, unsigned int n, int postScale, int postShift, short PReLUScale, short PReLUAlpha, unsigned PE);
 bool AddGEMMOp( void * A, void * B, void *C, void * bias,  unsigned int m, unsigned int k, unsigned int n, int postScale, int postShift, unsigned PE);
 
 int GetFreq ();
 void Execute (bool sync_exec, unsigned PE);
+void ExecuteFloat (bool sync_exec, unsigned PE);
+
 
 void int16_gemm(short * A, short * B, short * X, short *C, unsigned int M, unsigned int K, unsigned int N );
 
 }
+

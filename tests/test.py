@@ -126,11 +126,7 @@ class FcnTest(Test):
         
 class SpmvTest(Test):
   def multiply_and_cmp_spmv(self,row,col,data,m,k,nnz,B,C):
-      if B.dtype == np.int16:
-        C_cpu = np.zeros ((m, 1), dtype=np.int16)
-        data_cpu = np.zeros ((m, 1), dtype=np.int16)
-        data_cpu = data.astype(np.int16)
-      elif B.dtype == np.int32:
+      if B.dtype == np.int32:
         C_cpu = np.zeros ((m, 1), dtype=np.int32)
         data_cpu = np.zeros ((m, 1), dtype=np.int32)
         data_cpu = data.astype(np.int32)
@@ -139,13 +135,14 @@ class SpmvTest(Test):
         data_cpu = np.zeros ((m, 1), dtype=np.float32)
         data_cpu = data.astype(np.float32)
       else:
-        raise TypeError("type", B, "not supported") 
+        raise TypeError("type", B.dtype, "not supported") 
       for i in range(nnz):
         C_cpu[row[i]] += B[col[i]] * data_cpu[i]
       print (C.shape, C_cpu.shape)
       np.savetxt("C.np", C, fmt="%f")
       np.savetxt("C_cpu.np", C_cpu, fmt="%f")
       self.cmp(C, C_cpu)
+
         
 class GemmTest(Test):               
   pass
