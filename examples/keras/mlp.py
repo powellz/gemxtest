@@ -12,6 +12,12 @@ import math
 import keras_rt
 import gemx
 
+ 
+#Quantization parameters to bring fp32 ranges to fit into int16; parameters are derived offline ( see quantize.xlsx )
+g_wgt_scale = [155275.3311, 121798.1115, 71553.71463]
+#g_post_scale = [ [44,4833804], [39.4,5345361] , [1, 2819547] ]    
+g_post_scale = [ [5,19], [2,18] , [3,23] ]    
+g_in_scale = 31.13053392
 
 def train(train_fd, predictors, train_data, num_classes):
     
@@ -29,7 +35,6 @@ def train(train_fd, predictors, train_data, num_classes):
 def predict_hwemu ( weights, test_data, num_classes, use_fpga = False ):
     model = create_keras_model(test_data.values.shape[1], num_classes )
     model.load_weights(weights)
-    #return compute_standalone( test_data.values, model.get_weights())    
     return compute_standalone_hwemu( test_data.values, model.get_weights())
 
 def predict_cpu ( weights, input_dim, test_data, num_classes ):
@@ -47,16 +52,9 @@ def predict_cpu ( weights, input_dim, test_data, num_classes ):
 def predict_fpga( args, test_data, num_classes ):
     model = create_keras_model(test_data.values.shape[1], num_classes )
     model.load_weights(args.model)
- 
-    #Quantization parameters to bring fp32 ranges to fit into int16; parameters are derived offline
-    wgt_scale = [155275.3311, 121798.1115, 71553.71463]
-    #post_scale = [ [5,19], [2,18] , [2,17] ]    
-    post_scale = [ [5,19], [2,18] , [3,23] ]    
-    in_scale = 31.13053392
     
-    fpga_rt = keras_rt.KerasRT(model, test_data.values.shape[0], wgt_scale, 256,256,256)
-    
-    result = fpga_rt.predict(test_data.values, in_scale, post_scale)
+    fpga_rt = keras_rt.KerasRT(model, test_data.values.shape[0], g_wgt_scale, 256,256,256)
+    result = fpga_rt.predict(test_data.values, g_in_scale, g_post_scale)
 
     #run softmax on CPU
     for i in range(result.shape[0]):
@@ -79,36 +77,28 @@ def compute_dense(weight, bias, inp, scalein=1, post_scale=1):
         bias64 = np.int64(bias)#bias to 64 bits
         output64 = m64 + bias64
         
-    #o64d = output64/(2**post_scale[1])
-    o64d = output64/post_scale[1]
+    o64d = output64/(2**post_scale[1])
+    #o64d = output64/post_scale[1]
     o64m = o64d*post_scale[0]
     output = np.int16(o64m)#scale down for 16 bits
     return output
     
 def compute_standalone_hwemu( inp, wb ):
-    in_scale = [31.13053392, 1, 1]
-    wgt_scale = [155275.3311, 121798.1115, 71553.71463]
-    post_scale = [ 43.88706261, 39.40462421,41.47343054 ] 
-    post_scale_hw = [ [44,4833804], [39.4,5345361] , [1, 2819547] ]    
-    #post_scale_hw = [ [5,19], [2,18] , [2,17] ]    
-
     weights = wb[0::2]
     bias = wb[1::2]
 
     #quantization
-    w_int16 = [ np.int16(a*b) for a,b in zip(weights, wgt_scale)]
-    b_int32 = [ np.int32(a*b) for a,b in zip(bias, wgt_scale)]
+    w_int16 = [ np.int16(a*b) for a,b in zip(weights, g_wgt_scale)]
+    b_int32 = [ np.int32(a*b) for a,b in zip(bias, g_wgt_scale)]
         
-    o1 = compute_dense ( w_int16[0], b_int32[0], inp, in_scale[0], post_scale_hw[0])
-    print ("o1 range (", np.min(o1), ",", np.max(o1), ")")
+    o1 = compute_dense ( w_int16[0], b_int32[0], inp, g_in_scale, g_post_scale[0])
+    #print ("o1 range (", np.min(o1), ",", np.max(o1), ")")
     o1[o1 < 0] = 0
-    o2 = compute_dense ( w_int16[1], b_int32[1], o1, in_scale[1], post_scale_hw[1])
-    print ("o2 range (", np.min(o2), ",", np.max(o2), ")")    
+    o2 = compute_dense ( w_int16[1], b_int32[1], o1, 1, g_post_scale[1])
+    #print ("o2 range (", np.min(o2), ",", np.max(o2), ")")    
     o2[o2 < 0] = 0
-
-    o3 = compute_dense ( w_int16[2], b_int32[2], o2, in_scale[2], post_scale_hw[2])
-
-    print ("o3 range (", np.min(o3), ",", np.max(o3), ")")
+    o3 = compute_dense ( w_int16[2], b_int32[2], o2, 1, g_post_scale[2])
+    #print ("o3 range (", np.min(o3), ",", np.max(o3), ")")
     
     #softmax
     for i in range(o3.shape[0]):
@@ -153,7 +143,6 @@ def compare_results ( expected, actual):
         np.savetxt("out.np", a_r, fmt="%f")
         np.savetxt("out_golden.np", e_r, fmt="%f")
         np.savetxt("diff.np", e_r - a_r, fmt="%f")
-        
     
 def create_keras_model(in_dims, num_classes):
     '''
