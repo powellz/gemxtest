@@ -175,7 +175,6 @@ if  __name__ == '__main__':
     parser.add_argument('--device', required = True, choices=['cpu', 'kcu1500','vcu1525', 'vu9pf1'], help='supported FPGA devices')    
     parser.add_argument('--xclbin', help='file path to FPGA bitstream')
     parser.add_argument('--gemxlib', help='file path to GEMX host code shared library')
-    parser.add_argument('-k', '--kernelName', default="gemxKernel_0", help='FPGA kernel name')  
     args = parser.parse_args()
     
     if args.device is not 'cpu':
@@ -195,7 +194,7 @@ if  __name__ == '__main__':
     train_y = np_utils.to_categorical(encoded_Y)
     
     #load xclbin 
-    gemx.createFCNHandle( args.xclbin, args.kernelName, args.gemxlib , args.device )
+    gemx.createFCNHandle( args.xclbin, args.gemxlib, args.device )
         
     #hwemu_out = predict_hwemu( args.model,  train_fd[predictors], len(train_fd[target].unique()) )
     fpga_out = predict_fpga( args, train_fd[predictors], len(train_fd[target].unique()))
