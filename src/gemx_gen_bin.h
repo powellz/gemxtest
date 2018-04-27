@@ -1533,12 +1533,17 @@ class SpMatUram
 			unsigned int l_colIndex=0;
 			unsigned int l_nextRowIndex = 0;
 			unsigned int l_nextColIndex = 0;
-			unsigned int l_interLeaveId=0;
 			while (n < m_Nnz) {
-				l_curRow = p_Rows[n];
 				m = n;
 				if ( (n % (t_InterLeaves * GEMX_spmvUramGroups)) == 0) {
-					l_interLeaveId = 0;
+					if ((n>0) && (p_Rows[n].getRow() != p_Rows[n-(t_InterLeaves * GEMX_spmvUramGroups)].getRow())) {
+						if ((n+(t_InterLeaves * GEMX_spmvUramGroups)) > p_Rows.size()) {
+							sort(p_Rows.begin()+n, p_Rows.end());
+						} else {
+							sort(p_Rows.begin()+n, p_Rows.begin()+n+(t_InterLeaves * GEMX_spmvUramGroups)-1);
+						}
+					}
+					l_curRow = p_Rows[n];
 					l_rowIndex = l_curRow.getRow();
 					l_colIndex = l_curRow.getCol();
 				}
