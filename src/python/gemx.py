@@ -178,11 +178,19 @@ def load_buf ( np_list, PE=0):
     for b in np_list:
         _gemxManager.sendMat(b, PE)
 
+def parse_cfg(filename):
+    myvars = {}
+    with open(filename) as myfile:
+        for line in myfile:
+            name, var = line.partition("=")[::2]
+            myvars[name.strip()] = var.rstrip()  
+
+    return myvars
+
 def processCommandLine():
   parser = argparse.ArgumentParser(description='GEMX')
   parser.add_argument('--xclbin', required = True, help='file path to FPGA bitstream')
   parser.add_argument('--gemxlib', required = True, help='file path to GEMX host code shared library')
-  parser.add_argument('--device', required=True, choices=['ku115','kcu1500','vu9p', 'vcu1525', 'vu9pf1'], help='supported FPGA devices')
-  parser.add_argument('-n', '--numKernel', type=int, default=1, help='FPGA kernel name')  
+  parser.add_argument('--cfg', required=True, help='file describing .xclbin properties')
   return parser
 

@@ -6,24 +6,29 @@ class KerasRT():
     def __init__(self, keras_model, batch_sz, wgt_scale, min_m, min_k, min_n):
         self.w = keras_model.get_weights()[0::2]
         self.b = keras_model.get_weights()[1::2]
-        
+        self.min_m = 32*int(min_m)
+        self.min_k = 32*int(min_k)
+        self.min_n = 32*int(min_n)
+        print (self.min_m, self.min_k, self.min_n)
+        self.min_m = 256
+        self.min_k = 256
+        self.min_n = 256        
         self.w = [ np.int16(a*b) for a,b in zip(self.w, wgt_scale)]
         self.b = [ np.int32(a*b) for a,b in zip(self.b, wgt_scale)]
     
-        self.w = self.format_for_fpga( self.w, min_k, min_n)
-        self.b = self.format_for_fpga ( self.b, min_m, min_n)
+        self.w = self.format_for_fpga( self.w, self.min_k, self.min_n)
+        self.b = self.format_for_fpga ( self.b, self.min_m, self.min_n)
         gemx.load_buf( self.w )
         gemx.load_buf( self.b )
-        in_row, in_col = self.get_padded_shape([batch_sz, keras_model.layers[0].input_shape[1]], min_m, min_k)
+        in_row, in_col = self.get_padded_shape([batch_sz, keras_model.layers[0].input_shape[1]], self.min_m, self.min_k)
         self.fpga_buf = self.create_buf( self.w, [in_row,in_col])
         self.out_dim = ( batch_sz, keras_model.layers[-1].output_shape[1] )
-        self.min_m = min_m
-        self.min_k = min_k
-        self.min_n = min_n
 
     def get_padded_shape ( self, shape, min_row, min_col):
-        row_padded = int(math.ceil ( shape[0] / min_row ) * min_row ) 
-        col_padded = int( math.ceil( shape[1] / min_col ) * min_col )
+        #row_padded = int(math.ceil ( shape[0] / min_row ) * min_row ) 
+        #col_padded = int( math.ceil( shape[1] / min_col ) * min_col )
+        row_padded = max ( int(math.pow(2, int(math.log(shape[0], 2))+1)), min_row )
+        col_padded = max ( int(math.pow(2, int(math.log(shape[1], 2))+1)), min_col )        
         return row_padded,col_padded
 
     def format_for_fpga ( self, np_list, min_row, min_col):

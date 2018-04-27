@@ -49,11 +49,12 @@ def predict_cpu ( weights, input_dim, test_data, num_classes ):
     #return intermediate_output
     return predictions
 
-def predict_fpga( args, test_data, num_classes ):
+def predict_fpga( args, test_data, num_classes, xclbin_prop):
     model = create_keras_model(test_data.values.shape[1], num_classes )
     model.load_weights(args.model)
     
-    fpga_rt = keras_rt.KerasRT(model, test_data.values.shape[0], g_wgt_scale, 256,256,256)
+    fpga_rt = keras_rt.KerasRT(model, test_data.values.shape[0], g_wgt_scale, 
+                               xclbin_prop["GEMX_gemmMBlocks"],xclbin_prop["GEMX_gemmKBlocks"], xclbin_prop["GEMX_gemmNBlocks"] )
     result = fpga_rt.predict(test_data.values, g_in_scale, g_post_scale)
 
     #run softmax on CPU
@@ -161,15 +162,12 @@ if  __name__ == '__main__':
     parser = argparse.ArgumentParser(description='GEMX')
     parser.add_argument('--data', required = True, help='inference data file')
     parser.add_argument('--model', required = True, help='model')
-    parser.add_argument('--device', required = True, choices=['cpu', 'kcu1500','vcu1525', 'vu9pf1'], help='supported FPGA devices')    
-    parser.add_argument('--xclbin', help='file path to FPGA bitstream')
-    parser.add_argument('--gemxlib', help='file path to GEMX host code shared library')
+    #parser.add_argument('--device', default = 'fpga', choices=['cpu', 'fpga'], help='choose cpu or FPGA execution')    
+    parser.add_argument('--xclbin', required = True, help='file path to FPGA bitstream')
+    parser.add_argument('--cfg', required = True, help='file describing properties of .xclbin')
+    parser.add_argument('--gemxlib', required = True, help='file path to GEMX host code shared library')
     args = parser.parse_args()
     
-    if args.device is not 'cpu':
-        if args.xclbin is None or args.gemxlib is None:
-             parser.error("FPGA execution requires --xclbin and --gemxlib")
-             
     train_fd = pd.read_csv(args.data) # Load training data.
     IDcol = 'Run' # A column used to identified the run for data collection; not an independent variable.
     target = 'Class' # The column name for our dependent variable.
@@ -182,11 +180,13 @@ if  __name__ == '__main__':
     # Convert integers to dummy variables (i.e. one hot encoded)
     train_y = np_utils.to_categorical(encoded_Y)
     
+        
+    xclbin_prop = gemx.parse_cfg(args.cfg)
     #load xclbin 
-    gemx.createFCNHandle( args.xclbin, args.gemxlib, args.device )
+    gemx.createFCNHandle( args.xclbin, args.gemxlib, xclbin_prop["GEMX_part"] )
         
     #hwemu_out = predict_hwemu( args.model,  train_fd[predictors], len(train_fd[target].unique()) )
-    fpga_out = predict_fpga( args, train_fd[predictors], len(train_fd[target].unique()))
+    fpga_out = predict_fpga( args, train_fd[predictors], len(train_fd[target].unique()), xclbin_prop)
     cpu_out = predict_cpu( args.model, len(predictors), train_fd[predictors], len(train_fd[target].unique()) )
       
     compare_results ( cpu_out, fpga_out)
