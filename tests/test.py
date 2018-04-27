@@ -5,7 +5,7 @@ import random
 import argparse
 import time
 
-# test.py includes all the common test function shared by gemm and fcn engine
+# test.py includes all the common test function shared by gemm, fcn and spmv engine
 class Test:
   def cmp(self,A, B):
       if np.array_equal(A, B):
@@ -99,7 +99,7 @@ class Test:
       effApiPct = 100 * timeMsAt100pctEff / API_Time
       perfKernelInTops = total_operations / (Execute_Time * 1e-3) / 1e12
       perfApiInTops = total_operations/ (API_Time * 1e-3) / 1e12;
-      print "DATA_CSV:DdrWidth,Freq,M,K,N,Ops,TimeKernelMs,TimeApiMs,EffKernelPct,EffApiPct,PerfKernelTops,PerfApiTops"
+      print ("DATA_CSV:DdrWidth,Freq,M,K,N,Ops,TimeKernelMs,TimeApiMs,EffKernelPct,EffApiPct,PerfKernelTops,PerfApiTops")
       print ("DATA_CSV:32,%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%f" % (freq,m,k,n,total_operations,Execute_Time,API_Time,effKernelPct,effApiPct,perfKernelInTops,perfApiInTops))
         
 class FcnTest(Test):       
