@@ -11,12 +11,13 @@ def matrix_dim(s):
     except:
         raise argparse.ArgumentTypeError("matrix dims must be a triplet [m,k,n]")
 
-parser = gemx.processCommandLine()  
+parser = gemx.default_args()
 parser.add_argument('--numiter', required = False, type = int, default = 10000)
 parser.add_argument('-m','--matrix', action='append', type=matrix_dim, help='m,k,n dimensions of matrices', required=True)
 args = parser.parse_args()
+xclbin_opts = gemx.parse_cfg ( args.cfg ) 
 
-gemx.createFCNHandle(args.xclbin, "gemxKernel_0", args.gemxlib, args.device)
+gemx.createFCNHandle(args, xclbin_opts)
 
 A_buf = []
 bias_buf = []

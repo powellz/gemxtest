@@ -187,11 +187,15 @@ def parse_cfg(filename):
 
     return myvars
 
-def processCommandLine():
+def default_args():
   parser = argparse.ArgumentParser(description='GEMX')
   parser.add_argument('--xclbin', required = True, help='file path to FPGA bitstream')
   parser.add_argument('--gemxlib', required = True, help='file path to GEMX host code shared library')
   parser.add_argument('--cfg', required=True, help='file describing .xclbin properties')
+  return parser
+    
+def processCommandLine():
+  parser = default_args()
   args = parser.parse_args()
   xclbin_opts = parse_cfg ( args.cfg ) 
   return args, xclbin_opts
