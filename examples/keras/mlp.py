@@ -167,7 +167,11 @@ if  __name__ == '__main__':
     parser.add_argument('--cfg', required = True, help='file describing properties of .xclbin')
     parser.add_argument('--gemxlib', required = True, help='file path to GEMX host code shared library')
     args = parser.parse_args()
-    
+    xclbin_prop = gemx.parse_cfg(args.cfg)
+
+    #load xclbin 
+    gemx.createFCNHandle( args, xclbin_prop )
+        
     train_fd = pd.read_csv(args.data) # Load training data.
     IDcol = 'Run' # A column used to identified the run for data collection; not an independent variable.
     target = 'Class' # The column name for our dependent variable.
@@ -179,12 +183,7 @@ if  __name__ == '__main__':
     encoded_Y = encoder.transform(train_fd[target])
     # Convert integers to dummy variables (i.e. one hot encoded)
     train_y = np_utils.to_categorical(encoded_Y)
-    
-        
-    xclbin_prop = gemx.parse_cfg(args.cfg)
-    #load xclbin 
-    gemx.createFCNHandle( args.xclbin, args.gemxlib, xclbin_prop["GEMX_part"] )
-        
+
     #hwemu_out = predict_hwemu( args.model,  train_fd[predictors], len(train_fd[target].unique()) )
     fpga_out = predict_fpga( args, train_fd[predictors], len(train_fd[target].unique()), xclbin_prop)
     cpu_out = predict_cpu( args.model, len(predictors), train_fd[predictors], len(train_fd[target].unique()) )

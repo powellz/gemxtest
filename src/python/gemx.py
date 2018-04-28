@@ -57,17 +57,17 @@ class GEMXManager:
   def createFCNHandle (self, xclbin, deviceName, numHandles):
      b_xclbin = xclbin.encode('utf-8')
      b_device = deviceName.encode('utf-8')
-     self._lib.MakeFCNHost(b_xclbin, b_device,numHandles)
+     self._lib.MakeFCNHost(b_xclbin, b_device,int(numHandles))
      
   def createGEMMHandle (self, xclbin, deviceName, numHandles):
      b_xclbin = xclbin.encode('utf-8')
      b_device = deviceName.encode('utf-8')
-     self._lib.MakeGEMMHost(b_xclbin, b_device,numHandles)
+     self._lib.MakeGEMMHost(b_xclbin, b_device, int(numHandles))
      
   def createSPMVHandle (self, xclbin, deviceName, numHandles):
      b_xclbin = xclbin.encode('utf-8')
      b_device = deviceName.encode('utf-8')
-     self._lib.MakeSPMVHost(b_xclbin, b_device,numHandles)
+     self._lib.MakeSPMVHost(b_xclbin, b_device,int(numHandles))
      
   def addFCNOp(self, A, B, C, bias, postScale, postShift, PReLUScale, PReLUAlpha, PE):
     return self._lib.AddFCNOp(A,B, C, bias, c_uint(A.shape[0]), c_uint( A.shape[1] ), c_uint( B.shape[1]), c_int(postScale), c_int(postShift), c_short(PReLUScale), c_short(PReLUAlpha), c_uint(PE))
@@ -151,13 +151,13 @@ def createManager ( libFile ):
     _gemxManager = GEMXManager(libFile)    
   return True  
     
-def createFCNHandle(xclbin, libFile, deviceName, numPE=1):
-  createManager (libFile)
-  return _gemxManager.createFCNHandle(xclbin, deviceName, numPE)
+def createFCNHandle(args, xclbin_opts):
+  createManager (args.gemxlib)
+  return _gemxManager.createFCNHandle(args.xclbin, xclbin_opts["GEMX_part"], xclbin_opts["GEMX_numKernels"])
 
-def createGEMMHandle(xclbin, libFile, deviceName, numPE=1):
-  createManager (libFile)
-  return _gemxManager.createGEMMHandle(xclbin, deviceName, numPE)
+def createGEMMHandle(args, xclbin_opts):
+  createManager (args.gemxlib)
+  return _gemxManager.createGEMMHandle(args.xclbin, xclbin_opts["GEMX_part"], xclbin_opts["GEMX_numKernels"])
   
 def createSPMVHandle(xclbin, libFile, deviceName, numPE=1):
   createManager (libFile)
@@ -192,5 +192,7 @@ def processCommandLine():
   parser.add_argument('--xclbin', required = True, help='file path to FPGA bitstream')
   parser.add_argument('--gemxlib', required = True, help='file path to GEMX host code shared library')
   parser.add_argument('--cfg', required=True, help='file describing .xclbin properties')
-  return parser
+  args = parser.parse_args()
+  xclbin_opts = parse_cfg ( args.cfg ) 
+  return args, xclbin_opts
 

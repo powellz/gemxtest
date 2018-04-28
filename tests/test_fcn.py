@@ -111,23 +111,11 @@ def test_perf_multi_fcn(ins_count, m_size, k_size, n_size, A_range, B_range, pos
 if __name__ == '__main__':
   np.random.seed(123)  # for reproducibility
   test=FcnTest()
-  parser = gemx.processCommandLine()
-  args = parser.parse_args()
-  
-  timePoint = []
-  timePoint.append(time.time()*1000) #current time
-  gemx.createFCNHandle(args.xclbin, args.gemxlib, args.device, args.numKernel)
-  timePoint.append(time.time()*1000) # local xclbin
-  print ("Load Xclbin Time:", timePoint[1] - timePoint[0])
+  args, xclbin_opts = gemx.processCommandLine()
+  gemx.createFCNHandle( args, xclbin_opts)
 
-  m_size=np.array([512,512,2048,128])
-  k_size=np.array([384,512,512,2048])
-  n_size=np.array([32,32,32,32])   
-  test_perf_multi_fcn(4, m_size, k_size, n_size, 32764, 32764, [1,0]) # run performance measurement
-  gemx.printStats()
-  
-  for i in range (args.numKernel):
-      test.test_basic_randint( i, 32764, 32764, 0, 512, 512, 128, [16,17])
+  for i in range (int(xclbin_opts["GEMX_numKernels"])):
+      test.test_basic_randint( i, 32764, 32764, 0, 512, 512, 256, [16,17])
       size = 256
       while size < 8192:
         test.test_basic_randint( i, 32764, 32764, 0, size, size, size, [1,1])
@@ -142,3 +130,9 @@ if __name__ == '__main__':
     
   # test.test_rand_basic (32764, 0, 5, [1,0]) # larger matrix size will lead to hw timeout error in regression test
   test_multiInstrv1(32764, 512, 512, 128, True) 
+  
+  m_size=np.array([512,512,2048,128])
+  k_size=np.array([384,512,512,2048])
+  n_size=np.array([32,32,32,32])   
+  test_perf_multi_fcn(4, m_size, k_size, n_size, 32764, 32764, [1,0]) # run performance measurement
+  gemx.printStats()  
