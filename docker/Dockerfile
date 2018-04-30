@@ -1,4 +1,5 @@
-FROM xlnx_cred
+ARG BASE_IMG
+FROM $BASE_IMG
 
 # Install dependencies
 RUN apt-get update && apt-get install -y \
