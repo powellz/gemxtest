@@ -557,7 +557,7 @@ clean_int:
 	${RM} -rf ${OUT_DIR} log-run_${SDA_FLOW}.txt
 
 dump_config: ${OUT_DIR}
-	@echo ${CONFIG_INFO} | tr " " "\n" > ${OUT_DIR}/config_info.dat
+	@echo ${CONFIG_INFO} GEMX_fpgaDdrBanks=${GEMX_fpgaDdrBanks} | tr " " "\n" > ${OUT_DIR}/config_info.dat
 
 ${OUT_DIR} :
 	@echo "************* Creating DIR $@ *************"
