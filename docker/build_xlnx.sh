@@ -1,7 +1,5 @@
 #!/bin/bash
 
-#!/bin/bash
-
 uid=`id -u $USER`
 gid=`id -g $USER`
 
