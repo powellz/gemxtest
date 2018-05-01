@@ -85,15 +85,8 @@ def test_spmv(m,k,nnz,nnz_range,dtype):
 if __name__ == '__main__':
   np.random.seed(123)  # for reproducibility
   test = SpmvTest()
-  parser = gemx.processCommandLine()
-  args = parser.parse_args()
-  timePoint = []
-  timePoint.append(time.time()*1000) #current time
-  gemx.createSPMVHandle(args.xclbin, args.gemxlib, args.device, args.numKernel)
-  timePoint.append(time.time()*1000) # local xclbin
-  print ("Load Xclbin Time:"),
-  print (timePoint[1] - timePoint[0])
-  
+  args, xclbin_opts = gemx.processCommandLine()
+  gemx.createSPMVHandle(args, xclbin_opts)
   #test_spmv(96,128,256,2,np.int32)
   #mtx file must be in Matrix Market format
   #test_spmv_mtxfile("/wrk/xsjhdnobkup2/yifei/git_gemx/gemx/gemx/tests/raefsky3.mtx",2,np.float32) # seg error on execute()

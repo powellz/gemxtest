@@ -18,7 +18,7 @@ class Test:
       if np.allclose(A, B,1e-3,1e-5):
           print ("Success!\n")
       else:
-          print (C.shape, C_cpu.shape)
+          print (A.shape, B.shape)
           np.savetxt("C.np", A, fmt="%f")
           np.savetxt("C_cpu.np", B, fmt="%f")
           diff = np.isclose(A, B,1e-3,1e-5)
@@ -36,7 +36,7 @@ class Test:
       bias64 = np.int64(X)  # bias to 64 bits
       output64 = m64 + bias64
       o64d = output64 * post_scale[0]
-      o64m = o64d / (2 ** post_scale[1])
+      o64m = o64d // (2 ** post_scale[1])
       C_cpu = np.int16(o64m)  # scale down for 16 bits
       if np.array_equal(C, C_cpu):
           print ("Success!\n")
