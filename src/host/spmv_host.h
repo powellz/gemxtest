@@ -96,11 +96,11 @@ public:
     virtual bool AddGEMMOp(const HType & A, const HType & B, const HType & C, const HType & bias, unsigned int m, unsigned int k, unsigned int n, unsigned int lda, unsigned int ldb, unsigned int ldc, unsigned int ldx, int postScale, int postShift) {
         cerr << "GEMM operation not supported" << endl;
         return false;
-    }
+    } 
        
-    virtual void SendSpToFpgaFloat(int * row, int * col, float * data, unsigned int m, unsigned int k, unsigned int nnz, float * B, float * C){        
-       float tmpA[nnz*3];
-       float* A = tmpA;
+    virtual void SendSpToFpgaFloat(int * row, int * col, float * data, unsigned int m, unsigned int k, unsigned int nnz, float * B, float * C){   
+       vector<float> tmpA(nnz*3);
+       float* A = &tmpA[0];
        SpMatUram<float,int> MatA(m,k,nnz,A);
        MatA.fillFromVector(row,col,data);
 
@@ -120,7 +120,7 @@ public:
                 boost::compute::system::default_device().get(),
                 sizeof(unsigned long long), &C_off);
 
-       cout << "A_dev_addr: " << A_off << " B_dev_addr: " << B_off << " C_dev_addr: " << C_off << endl;
+       //cout << "A_dev_addr: " << A_off << " B_dev_addr: " << B_off << " C_dev_addr: " << C_off << endl;
        assert(A_off > this->_ddrDeviceBaseAddr);
        assert(B_off > this->_ddrDeviceBaseAddr);
        assert(C_off > this->_ddrDeviceBaseAddr);
@@ -141,8 +141,8 @@ public:
     }
     
     virtual void SendSpToFpgaInt(int * row, int * col, float * data, unsigned int m, unsigned int k, unsigned int nnz, int * B, int * C){        
-       int tmpA[nnz*3];
-       int* A = tmpA;
+       vector<int> tmpA(nnz*3);
+       int* A = &tmpA[0];
        SpMatUram<int,int> MatA(m,k,nnz,A);
        MatA.fillFromVector(row,col,data);
 
@@ -162,7 +162,7 @@ public:
                 boost::compute::system::default_device().get(),
                 sizeof(unsigned long long), &C_off);
 
-       cout << "A_dev_addr: " << A_off << " B_dev_addr: " << B_off << " C_dev_addr: " << C_off << endl;
+       //cout << "A_dev_addr: " << A_off << " B_dev_addr: " << B_off << " C_dev_addr: " << C_off << endl;
        assert(A_off > this->_ddrDeviceBaseAddr);
        assert(B_off > this->_ddrDeviceBaseAddr);
        assert(C_off > this->_ddrDeviceBaseAddr);
