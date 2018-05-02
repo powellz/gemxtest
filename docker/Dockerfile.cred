@@ -1,22 +1,22 @@
 FROM ubuntu:16.04
 
-arg http_proxy
-arg https_proxy
-#RUN echo "Acquire::https::proxy \"$https_proxy\";" >> /etc/apt/apt.conf
-#RUN echo "Acquire::http::proxy \"http_proxy\";" >> /etc/apt/apt.conf
+ARG http_proxy
+ARG https_proxy
 ARG user
 ARG uid
 ARG gid
 RUN echo "$user, $uid, $gid"
 
+ENV http_proxy=$http_proxy
+ENV https_proxy=$https_proxy
+
 RUN if [ -z $http_proxy ]; then echo "proxy not set"; else echo "Acquire::http::proxy \"$http_proxy\";" >> /etc/apt/apt.conf; fi
 
-#RUN cat /etc/apt/apt.conf
-RUN if [ -z $https_proxy]; then echo "proxy not set"; else echo "Acquire::https::proxy \"$https_proxy\";" >> /etc/apt/apt.conf; fi
+RUN if [ -z $https_proxy ]; then echo "proxy not set"; else echo "Acquire::https::proxy \"$https_proxy\";" >> /etc/apt/apt.conf; fi
 
 RUN getent group $gid || addgroup --gid $gid hd
-RUN if [ `id -u $user` ]; then echo "$user already present" ; else useradd -u $uid -g $gid -d /home/$user -M $user; fi
-#RUN useradd -u $uid -g $gid -d /home/$user -M $user
+
+RUN if [ $(id -u $user; echo $?) -ne "0" ]; then useradd -u $uid -g $gid -d /home/$user -M $user; fi
 
 RUN apt-get update && apt-get install -y sudo
 
