@@ -1,5 +1,8 @@
-#!/bin/bash
+user=root
+uid=`id -u root`
+gid=100
 
-uid=`id -u $USER`
+sudo docker build -t root_cred --build-arg user=$user --build-arg uid=$uid --build-arg gid=$gid -f Dockerfile.cred . &&
 
-sudo docker build -t $uid/keras --build-arg BASE_IMG=ubuntu:16.04 -f Dockerfile .
+sudo docker build -t $user/keras --build-arg BASE_IMG=root_cred -f Dockerfile .
+
