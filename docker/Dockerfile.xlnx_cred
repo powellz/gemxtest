@@ -1,16 +1,22 @@
 FROM ubuntu:16.04
 
-ENV http_proxy=http://proxy:8080
-ENV https_proxy=http://proxy:8080
-RUN echo 'Acquire::https::proxy "http://proxy:8080/";' >> /etc/apt/apt.conf
-RUN echo 'Acquire::http::proxy "http://proxy:8080/";' >> /etc/apt/apt.conf
-
+arg http_proxy
+arg https_proxy
+#RUN echo "Acquire::https::proxy \"$https_proxy\";" >> /etc/apt/apt.conf
+#RUN echo "Acquire::http::proxy \"http_proxy\";" >> /etc/apt/apt.conf
 ARG user
 ARG uid
 ARG gid
+RUN echo "$user, $uid, $gid"
+
+RUN if [ -z $http_proxy ]; then echo "proxy not set"; else echo "Acquire::http::proxy \"$http_proxy\";" >> /etc/apt/apt.conf; fi
+
+#RUN cat /etc/apt/apt.conf
+RUN if [ -z $https_proxy]; then echo "proxy not set"; else echo "Acquire::https::proxy \"$https_proxy\";" >> /etc/apt/apt.conf; fi
 
 RUN getent group $gid || addgroup --gid $gid hd
-RUN useradd -u $uid -g $gid -d /home/$user -M $user
+RUN if [ `id -u $user` ]; then echo "$user already present" ; else useradd -u $uid -g $gid -d /home/$user -M $user; fi
+#RUN useradd -u $uid -g $gid -d /home/$user -M $user
 
 RUN apt-get update && apt-get install -y sudo
 
@@ -24,3 +30,4 @@ RUN mkdir -p /home/$user && \
 
 ENV HOME /home/$user
 VOLUME /home/$user
+
