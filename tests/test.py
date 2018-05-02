@@ -12,15 +12,31 @@ class Test:
           print ("Success!\n")
       else:
           print ("not equal :(")
+          sys.exit()
+          
+  def cmpWithinTolerance(self,A, B):
+      if np.allclose(A, B,1e-3,1e-5):
+          print ("Success!\n")
+      else:
+          print (A.shape, B.shape)
+          np.savetxt("C.np", A, fmt="%f")
+          np.savetxt("C_cpu.np", B, fmt="%f")
+          diff = np.isclose(A, B,1e-3,1e-5)
+          countDiff = diff.shape[0] - np.count_nonzero(diff)
+          print ("not equal, number of mismatches = ", countDiff)
+          mismatch = ((diff==0).nonzero())
+          print ("mismatches are in ",mismatch[0])
+          for i in mismatch[0]:
+            print (A[i]," is different from ",B[i])         
           sys.exit()  
-
+          
   def multiply_and_cmp(self,C, A, B, X, m, n, post_scale):
       # Calculate golden C
       m64 = np.matmul(np.int64(A), np.int64(B))  # intermediate accumulation to 64 bits
       bias64 = np.int64(X)  # bias to 64 bits
       output64 = m64 + bias64
       o64d = output64 * post_scale[0]
-      o64m = o64d / (2 ** post_scale[1])
+      o64m = o64d // (2 ** post_scale[1])
       C_cpu = np.int16(o64m)  # scale down for 16 bits
       if np.array_equal(C, C_cpu):
           print ("Success!\n")
@@ -152,10 +168,7 @@ class SpmvTest(Test):
         raise TypeError("type", B.dtype, "not supported") 
       for i in range(nnz):
         C_cpu[row[i]] += B[col[i]] * data_cpu[i]
-      print (C.shape, C_cpu.shape)
-      np.savetxt("C.np", C, fmt="%f")
-      np.savetxt("C_cpu.np", C_cpu, fmt="%f")
-      self.cmp(C, C_cpu)
+      self.cmpWithinTolerance(C, C_cpu)
 
         
 class GemmTest(Test):               

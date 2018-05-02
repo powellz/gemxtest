@@ -182,9 +182,9 @@ def parse_cfg(filename):
     myvars = {}
     with open(filename) as myfile:
         for line in myfile:
-            name, var = line.partition("=")[::2]
-            myvars[name.strip()] = var.rstrip()  
-  
+            for word in line.split():
+               name, var = word.split("=")
+               myvars[name.strip()] = var.rstrip()  
     return myvars
 
 def default_args():
@@ -199,4 +199,3 @@ def processCommandLine():
   args = parser.parse_args()
   xclbin_opts = parse_cfg ( args.cfg ) 
   return args, xclbin_opts
-
