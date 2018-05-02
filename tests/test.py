@@ -53,7 +53,6 @@ class Test:
         
   def test_basic_randint (self,PE, A_range, B_range, bias_range, m, k, n, post_scale):
       mat_A = np.random.randint(low=-A_range, high=A_range, size=(m, k), dtype=np.int16)
-
       mat_B = np.random.randint(low=-B_range, high=B_range, size=(k, n), dtype=np.int16)  
       bias = []
       if bias_range != 0:
@@ -117,6 +116,21 @@ class Test:
       perfApiInTops = total_operations/ (API_Time * 1e-3) / 1e12;
       print ("DATA_CSV:DdrWidth,Freq,M,K,N,Ops,TimeKernelMs,TimeApiMs,EffKernelPct,EffApiPct,PerfKernelTops,PerfApiTops")
       print ("DATA_CSV:32,%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%f" % (freq,m,k,n,total_operations,Execute_Time,API_Time,effKernelPct,effApiPct,perfKernelInTops,perfApiInTops))
+  
+  def check_input(self, m_size, k_size, n_size, xclbin_opts):
+      m_block = int(xclbin_opts["GEMX_gemmMBlocks"])
+      k_block = int(xclbin_opts["GEMX_gemmKBlocks"])
+      n_block = int(xclbin_opts["GEMX_gemmNBlocks"])
+      ddr_width = int(xclbin_opts["GEMX_ddrWidth"])
+      if m_size%(m_block*ddr_width) !=0:
+         print ("m must be multiple of", m_block, "and", ddr_width)
+         sys.exit()
+      elif k_size%(k_block*ddr_width) !=0:
+         print ("k must be multiple of", k_block, "and", ddr_width)
+         sys.exit()
+      elif n_size%(n_block*ddr_width) !=0:
+         print ("n must be multiple of", n_block, "and", ddr_width)  
+         sys.exit()
         
 class FcnTest(Test):       
   def test_basic(self,PE, mat_A, mat_B, bias, post_scale=[1, 1]):
