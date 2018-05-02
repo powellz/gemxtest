@@ -159,9 +159,9 @@ def createGEMMHandle(args, xclbin_opts):
   createManager (args.gemxlib)
   return _gemxManager.createGEMMHandle(args.xclbin, xclbin_opts["GEMX_part"], xclbin_opts["GEMX_numKernels"])
   
-def createSPMVHandle(xclbin, libFile, deviceName, numPE=1):
-  createManager (libFile)
-  return _gemxManager.createSPMVHandle(xclbin, deviceName, numPE)
+def createSPMVHandle(args, xclbin_opts):
+  createManager (args.gemxlib)
+  return _gemxManager.createSPMVHandle(args.xclbin, xclbin_opts["GEMX_part"], xclbin_opts["GEMX_numKernels"])
 
 def printStats():
   return _gemxManager.printStats()
@@ -184,7 +184,7 @@ def parse_cfg(filename):
         for line in myfile:
             name, var = line.partition("=")[::2]
             myvars[name.strip()] = var.rstrip()  
-
+  
     return myvars
 
 def default_args():
