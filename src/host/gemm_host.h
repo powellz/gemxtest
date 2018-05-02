@@ -58,7 +58,7 @@ public:
             ddrBanks = {XCL_MEM_DDR_BANK0, XCL_MEM_DDR_BANK3, XCL_MEM_DDR_BANK1, XCL_MEM_DDR_BANK2 };
         }
         else if ( device == "vu9pf1"){
-            ddrBanks = {XCL_MEM_DDR_BANK3, XCL_MEM_DDR_BANK2, XCL_MEM_DDR_BANK0, XCL_MEM_DDR_BANK1};
+            ddrBanks = {XCL_MEM_DDR_BANK0, XCL_MEM_DDR_BANK2, XCL_MEM_DDR_BANK3, XCL_MEM_DDR_BANK1};
         }
         else{
             cerr << "Unsupported device! Options are ku115, kcu1500, vu9pf1, vcu1525" << endl;

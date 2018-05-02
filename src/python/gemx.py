@@ -182,9 +182,9 @@ def parse_cfg(filename):
     myvars = {}
     with open(filename) as myfile:
         for line in myfile:
-            for word in line.split():
-               name, var = word.split("=")
-               myvars[name.strip()] = var.rstrip()  
+            name, var = line.partition("=")[::2]
+            myvars[name.strip()] = var.rstrip()  
+  
     return myvars
 
 def default_args():
