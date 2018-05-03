@@ -115,19 +115,11 @@ if __name__ == '__main__':
   gemx.createFCNHandle( args, xclbin_opts)
 
   for i in range (int(xclbin_opts["GEMX_numKernels"])):
-      test.test_basic_randint( i, 32764, 32764, 0, 512, 512, 256, [16,17])
-      size = 256
-      while size < 8192:
-        test.test_basic_randint( i, 32764, 32764, 0, size, size, size, [1,1])
-        test.test_basic_randint( i, 32764, 32764, 0, size, size, size, [4,18])
-        size = size * 2
-        
-      for i in range(5):
-        test.test_basic_randint( i,32764, 32764, 0, 512, 512, 128, [16,17])
-        test.test_basic_randint( i,32764, 32764, 0, 256, 512, 128, [2,18])
-        test.test_basic_randint( i,32764, 32764, 0, 2048, 512, 128, [4,18])
-        test.test_basic_randint( i,32764, 32764, 0, 2048, 512, 128, [128,17])
-    
+      for j in range (1,30):
+          for k in range(1,18):
+              for n in range(1000):
+                  test.test_rand_basic( i, xclbin_opts, [j,k], 2048)    
+      
   # test.test_rand_basic (32764, 0, 5, [1,0]) # larger matrix size will lead to hw timeout error in regression test
   test_multiInstrv1(32764, 512, 512, 128, True) 
   

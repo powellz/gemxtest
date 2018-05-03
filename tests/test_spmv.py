@@ -49,6 +49,7 @@ def test_spmv_mtxfile(mtxpath,vector_range,dtype):
      data = (matA.data).astype(np.float32)
      m,k = matA.shape
      nnz = matA.nnz
+     print (matA.shape,matA.nnz)
      # pad with 0s and adjust dimensions when necessary
      while nnz%16 !=0:
        row = (np.append(row,0)).astype(np.int32)
@@ -87,9 +88,13 @@ if __name__ == '__main__':
   test = SpmvTest()
   args, xclbin_opts = gemx.processCommandLine()
   gemx.createSPMVHandle(args, xclbin_opts)
-  #test_spmv(96,128,256,2,np.int32)
+  
   #mtx file must be in Matrix Market format
-  #test_spmv_mtxfile("/wrk/xsjhdnobkup2/yifei/git_gemx/gemx/gemx/tests/raefsky3.mtx",2,np.float32) # seg error on execute()
-  #test_spmv(96,128,256,2,np.float32)
+  test_spmv_mtxfile("./data/spmv/mario001.mtx",2,np.float32) 
+  test_spmv_mtxfile("./data/spmv/image_interp.mtx",2,np.float32) 
+  #test_spmv_mtxfile("../data/spmv/raefsky3.mtx",2,np.float32) # seg error on execute()
+  #test_spmv_mtxfile("../data/spmv/stomach.mtx",2,np.float32) # seg error on execute()
+  #test_spmv_mtxfile("../data/spmv/torso3.mtx",2,np.float32) # seg error on execute()  
+  
+  test_spmv(96,128,256,2,np.float32)
   test_spmv(65472,65472,500000,17,np.float32) 
-  #test_spmv(960,960,2000,17,np.float32) 
