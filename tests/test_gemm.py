@@ -44,10 +44,10 @@ if __name__ == '__main__':
   gemx.createGEMMHandle(args, xclbin_opts)
   
   for PE in range(xclbin_opts["GEMX_numKernels"]):
-      test.test_basic_randint( PE, 32764, 32764, 0, 512, 512, 128, [16,17])
-      test.test_basic_randint( PE, 32764, 32764, 0, 256, 512, 128, [2,18])
-      test.test_basic_randint( PE, 32764, 32764, 0, 2048, 512, 128, [4,18])
-      test.test_basic_randint( PE, 32764, 32764, 0, 2048, 512, 128, [128,17])
+      test.test_basic_randint( PE, 512, 512, 128, [16,17])
+      test.test_basic_randint( PE, 256, 512, 128, [2,18])
+      test.test_basic_randint( PE, 2048, 512, 128, [4,18])
+      test.test_basic_randint( PE, 2048, 512, 128, [128,17])
 
   # test.test_rand_basic (32764, 0, 5, [1,0]) # larger matrix size will lead to hw timeout error in regression test
   test_multiInstrv1(32764, 512, 512, 128, True) 

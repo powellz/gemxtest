@@ -4,6 +4,7 @@ import sys
 import random
 import argparse
 import time
+import math
 
 # test.py includes all the common test function shared by gemm, fcn and spmv engine
 class Test:
@@ -32,7 +33,10 @@ class Test:
           
   def multiply_and_cmp(self,C, A, B, X, m, n, post_scale):
       # Calculate golden C
-      m64 = np.matmul(np.int64(A), np.int64(B))  # intermediate accumulation to 64 bits
+      #start_compute = time.time()
+      m64 = np.int64(np.round(np.matmul(np.float64(A), np.float64(B))))  # intermediate accumulation to 64 bits
+      #print ("float64 compute elapsed:", time.time() - start_compute)
+      #m64 = np.matmul(np.int64(A), np.int64(B)) # intermediate accumulation to 64 bits
       bias64 = np.int64(X)  # bias to 64 bits
       output64 = m64 + bias64
       o64d = output64 * post_scale[0]
@@ -49,16 +53,22 @@ class Test:
           np.savetxt("A.np", A, fmt="%d")
           np.savetxt("B.np", B, fmt="%d")
           sys.exit();    
-        
-        
-  def test_basic_randint (self,PE, A_range, B_range, bias_range, m, k, n, post_scale):
+
+  def test_basic_randint (self,PE, m, k, n, post_scale):
+      int16_max = np.iinfo(np.int16).max
+      int16_min = np.iinfo(np.int16).min
+      int32_max = np.iinfo(np.int32).max
+      int32_min = np.iinfo(np.int32).min      
+      mat_A = np.random.randint(low=int16_min, high=int16_max, size=(m, k), dtype=np.int16)
+      mat_B = np.random.randint(low=int16_min, high=int16_max, size=(k, n), dtype=np.int16)  
+      bias = np.random.randint(low=int32_min, high=int32_max, size=(m, n), dtype=np.int32)
+      
+      self.test_basic(PE,mat_A, mat_B, bias, post_scale)
+      
+  def test_basic_randint_range (self,PE, A_range, B_range, bias_range, m, k, n, post_scale):
       mat_A = np.random.randint(low=-A_range, high=A_range, size=(m, k), dtype=np.int16)
       mat_B = np.random.randint(low=-B_range, high=B_range, size=(k, n), dtype=np.int16)  
-      bias = []
-      if bias_range != 0:
-          bias = np.random.randint(low=-bias_range, high=bias_range, size=(m, n), dtype=np.int32)
-      else:
-          bias = np.zeros ((m, n), dtype=np.int32, order='C');      
+      bias = np.random.randint(low=-bias_range, high=bias_range, size=(m, n), dtype=np.int32)
       self.test_basic(PE,mat_A, mat_B, bias, post_scale)
 
   def test_basic_randint_shift (self,PE,A_range, A_shift, B_range, B_shift, bias_range, bias_shift, m, k, n, post_scale):
@@ -66,24 +76,20 @@ class Test:
       mat_A = mat_A + A_shift
       mat_B = np.random.randint(low=-B_range, high=B_range, size=(k, n), dtype=np.int16)
       mat_B = mat_B + B_shift   
-      bias = []
-      if bias_range != 0:
-          bias = np.random.randint(low=-bias_range, high=bias_range, size=(m, n), dtype=np.int32)
-      else:
-          bias = np.zeros ((m, n), dtype=np.int32);    bias = bias + bias_shift
+      bias = np.random.randint(low=-bias_range, high=bias_range, size=(m, n), dtype=np.int32)
       self.test_basic(PE,mat_A, mat_B, bias, post_scale)  
       
-  def test_rand_basic (self,PE,int_range, bias_range, num_iter, post_scale):  
-      min_sz_exp = 8 
-      for i in range(num_iter):
-          print ("test_rand_basic iter: %d" % i)
-          rand_m = random.randint(0, 5) 
-          rand_k = random.randint(0, 5) 
-          rand_n = random.randint(0, 5)       
-          rand_m = 2 ** (rand_m + min_sz_exp) 
-          rand_k = 2 ** (rand_k + min_sz_exp)
-          rand_n = 2 ** (rand_n + min_sz_exp)
-          self.test_basic_randint(PE,int_range, int_range, bias_range, rand_m, rand_k, rand_n, post_scale)
+  def test_rand_basic (self,PE, xclbin_opts, post_scale, max_dim):  
+      min_m = 32 * int(xclbin_opts["GEMX_gemmMBlocks"])
+      min_k = 32 * int(xclbin_opts["GEMX_gemmKBlocks"])
+      min_n = 32 * int(xclbin_opts["GEMX_gemmNBlocks"])      
+      rand_m = random.randint(1, int(max_dim/min_m)) 
+      rand_k = random.randint(1, int(max_dim/min_k)) 
+      rand_n = random.randint(1, int(max_dim/min_n))       
+      rand_m = rand_m * min_m 
+      rand_k = rand_k * min_k
+      rand_n = rand_n * min_n
+      self.test_basic_randint(PE, rand_m, rand_k, rand_n, post_scale)
           
   def test_basic(self,PE, mat_A, mat_B, bias, post_scale = [1,1]):
       m = mat_A.shape[0]
@@ -100,11 +106,8 @@ class Test:
       gemx.sendMat(bias, PE)
       gemx.addGEMMOp ( mat_A, mat_B, C_fpga, bias, post_scale[0], post_scale[1], PE) # default test_basic will call addGEMMOp
       gemx.execute(PE)
-      gemx.getMat(C_fpga,PE)  
-      if m > 4096 and n > 4096 and k > 4096:
-        print("Skip golden comparision because large matrix size")
-      else:
-        self.multiply_and_cmp(C_fpga, mat_A, mat_B, bias, m, n, post_scale)
+      gemx.getMat(C_fpga,PE)
+      self.multiply_and_cmp(C_fpga, mat_A, mat_B, bias, m, n, post_scale)
    
   def test_perf(self,timePointKernel, total_operations, total_parallel_operations, freq, m, k, n):
       Execute_Time = (timePointKernel[2] - timePointKernel[1])*1e3
@@ -149,10 +152,7 @@ class FcnTest(Test):
       gemx.addFCNOp (mat_A, mat_B, C_fpga, bias, post_scale[0], post_scale[1], 1, 0, PE)
       gemx.execute(PE)
       gemx.getMat(C_fpga, PE)  
-      if m > 4096 and n > 4096 and k > 4096:
-        print("Skip golden comparision because large matrix size")
-      else:
-        self.multiply_and_cmp(C_fpga, mat_A, mat_B, bias, m, n, post_scale)
+      self.multiply_and_cmp(C_fpga, mat_A, mat_B, bias, m, n, post_scale)
         
 class SpmvTest(Test):
   def multiply_and_cmp_spmv(self,row,col,data,m,k,nnz,B,C):
