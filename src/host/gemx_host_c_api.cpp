@@ -145,7 +145,6 @@ void* GetFromFPGA(short *A, unsigned PE, bool sync_get)
 
 void* GetFromFPGAInt(int *A, unsigned PE, bool sync_get)
 {
-    //This function is for SPMV engine only
     gemx::XTimer t;
     void * ptr = GEMXHostHandle<void*>::Instance().gh_ptr[PE]->GetMat(A, true, sync_get);
 #ifdef GEMX_PERF_DBG
