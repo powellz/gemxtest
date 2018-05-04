@@ -43,7 +43,6 @@ class GEMXManager:
     self._lib.AddGEMMOp.restype = c_bool
     
     self._lib.Execute.argtypes = [c_bool, c_uint]
-    self._lib.ExecuteFloat.argtypes = [c_bool, c_uint]
     self._lib.GetFromFPGA.argtypes = [np.ctypeslib.ndpointer(c_short, flags="C_CONTIGUOUS"), c_uint, c_bool]
     self._lib.GetFromFPGA.restype = c_void_p
     self._lib.GetFromFPGAInt.argtypes = [np.ctypeslib.ndpointer(c_int, flags="C_CONTIGUOUS"), c_uint, c_bool]
@@ -78,9 +77,6 @@ class GEMXManager:
   def execute(self, PE, sync_exec = True):
     self._lib.Execute(sync_exec, PE)
     
-  def executefloat(self, PE, sync_exec = True):
-    self._lib.ExecuteFloat(sync_exec, PE)
-
   def wait(self, PE):
     self._lib.Wait(PE)    
           
@@ -139,9 +135,6 @@ def addGEMMOp( A,B,C, bias, postScale, postShift,PE=0):
 def execute(PE=0, sync_exec = True):
     _gemxManager.execute( PE, sync_exec)
     
-def executefloat(PE=0, sync_exec = True):
-    _gemxManager.executefloat( PE, sync_exec)
-
 def wait(PE=0):
     _gemxManager.wait(PE)    
     

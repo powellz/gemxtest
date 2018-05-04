@@ -62,7 +62,7 @@ void MakeFCNHost(char *xclbin, char * device, unsigned int nPE)
 	for (unsigned i = 0; i < nPE; i++)
 	{
 		string kName = GEMMHost<short*>::getKernelName(i);
-		GEMXHostHandle<short*>::Instance().gh_ptr.push_back(shared_ptr< gemx::GEMMHost<short*> > (new gemx::FCNHost<short*>(xclbin, kName, ddr[i], device) ));
+		GEMXHostHandle<void*>::Instance().gh_ptr.push_back(shared_ptr< gemx::GEMMHost<void*> > (new gemx::FCNHost<void*>(xclbin, kName, ddr[i], device) ));
 	}
 }
 
@@ -72,24 +72,24 @@ void MakeGEMMHost(char *xclbin, char * device, unsigned int nPE)
 	for (unsigned i = 0; i < nPE; i++)
 	{
 		string kName = GEMMHost<short*>::getKernelName(i);
-    	GEMXHostHandle<short*>::Instance().gh_ptr.push_back(shared_ptr< gemx::GEMMHost<short*> > ( new gemx::GEMMHost<short*>(xclbin, kName, ddr[i], device) ));
+    	GEMXHostHandle<void*>::Instance().gh_ptr.push_back(shared_ptr< gemx::GEMMHost<void*> > ( new gemx::GEMMHost<void*>(xclbin, kName, ddr[i], device) ));
 	}
 }
 
 void MakeSPMVHost(char *xclbin, char * device, unsigned int nPE) {
   
-  	vector<unsigned> ddr = GEMMHost<float*>::getDDRBankFlags(device);
+  	vector<unsigned> ddr = GEMMHost<void*>::getDDRBankFlags(device);
 	for (unsigned i = 0; i < nPE; i++)
 	{
-		string kName = GEMMHost<float*>::getKernelName(i);
-    	GEMXHostHandle<float*>::Instance().gh_ptr.push_back(shared_ptr< gemx::GEMMHost<float*> > ( new gemx::SPMVHost<float*>(xclbin, kName, ddr[i], device) ));
+		string kName = GEMMHost<void*>::getKernelName(i);
+    	GEMXHostHandle<void*>::Instance().gh_ptr.push_back(shared_ptr< gemx::GEMMHost<void*> > ( new gemx::SPMVHost<void*>(xclbin, kName, ddr[i], device) ));
 	}
 }
 
 void SendToFPGAShrt(short *A, unsigned long long num_elem, unsigned PE, bool sync_send)
 {
     gemx::XTimer t;
-    GEMXHostHandle<short*>::Instance().gh_ptr[PE]->SendToFPGA((short*)A, A, sizeof(short) *num_elem, sync_send);
+    GEMXHostHandle<void*>::Instance().gh_ptr[PE]->SendToFPGA(A, A, sizeof(short) *num_elem, sync_send);
     //SendToFPGA( A, sizeof(short) * num_elem, sync_send);
 #ifdef GEMX_PERF_DBG
     GEMXHostProfiler::Instance().func_time["SendToFPGAShrt"] += t.elapsed();
@@ -100,7 +100,7 @@ void SendToFPGAShrt(short *A, unsigned long long num_elem, unsigned PE, bool syn
 void SendToFPGAInt(int *A, unsigned long long num_elem, unsigned PE,bool sync_send)
 {
     gemx::XTimer t;
-    GEMXHostHandle<short*>::Instance().gh_ptr[PE]->SendToFPGA((short*)A, A, sizeof(int) *num_elem, sync_send);
+    GEMXHostHandle<void*>::Instance().gh_ptr[PE]->SendToFPGA(A, A, sizeof(int) *num_elem, sync_send);
     //SendToFPGA(A, sizeof(int) *num_elem, sync_send);
 #ifdef GEMX_PERF_DBG
     GEMXHostProfiler::Instance().func_time["SendToFPGAInt"] += t.elapsed();
@@ -110,12 +110,12 @@ void SendToFPGAInt(int *A, unsigned long long num_elem, unsigned PE,bool sync_se
 }
 
 void SendSpToFpgaInt(int *row, int *col, float *data, unsigned int m, unsigned int k, unsigned int nnz,void * B, void * C, unsigned PE){
-    gemx::SPMVHost<float*>* spmv_ptr = static_cast< gemx::SPMVHost<float*> *> (GEMXHostHandle<float*>::Instance().gh_ptr[PE].get());
+    gemx::SPMVHost<void*>* spmv_ptr = static_cast< gemx::SPMVHost<void*> *> (GEMXHostHandle<void*>::Instance().gh_ptr[PE].get());
     spmv_ptr->SendSpToFpgaInt(row,col,data,m,k,nnz,(int*)B,(int*)C);
 }
 
 void SendSpToFpgaFloat(int *row, int *col, float *data, unsigned int m, unsigned int k, unsigned int nnz,void * B, void * C, unsigned PE){
-    gemx::SPMVHost<float*>* spmv_ptr = static_cast< gemx::SPMVHost<float*> *> (GEMXHostHandle<float*>::Instance().gh_ptr[PE].get());
+    gemx::SPMVHost<void*>* spmv_ptr = static_cast< gemx::SPMVHost<void*> *> (GEMXHostHandle<void*>::Instance().gh_ptr[PE].get());
     spmv_ptr->SendSpToFpgaFloat(row,col,data,m,k,nnz,(float*)B,(float*)C);
 }
 
@@ -135,7 +135,7 @@ void SendToFPGAInt_dbg(char * name, int *A, int m, int n, bool sync_send){
 void* GetFromFPGA(short *A, unsigned PE, bool sync_get)
 {
     gemx::XTimer t;
-    void * ptr = GEMXHostHandle<short*>::Instance().gh_ptr[PE]->GetMat((short*)A, true, sync_get);
+    void * ptr = GEMXHostHandle<void*>::Instance().gh_ptr[PE]->GetMat(A, true, sync_get);
 #ifdef GEMX_PERF_DBG
     GEMXHostProfiler::Instance().func_time["GetFromFPGA"] += t.elapsed();
     GEMXHostProfiler::Instance().func_calls["GetFromFPGA"]++;
@@ -147,7 +147,7 @@ void* GetFromFPGAInt(int *A, unsigned PE, bool sync_get)
 {
     //This function is for SPMV engine only
     gemx::XTimer t;
-    void * ptr = GEMXHostHandle<float*>::Instance().gh_ptr[PE]->GetMat((float*)A, true, sync_get);
+    void * ptr = GEMXHostHandle<void*>::Instance().gh_ptr[PE]->GetMat(A, true, sync_get);
 #ifdef GEMX_PERF_DBG
     GEMXHostProfiler::Instance().func_time["GetFromFPGA"] += t.elapsed();
     GEMXHostProfiler::Instance().func_calls["GetFromFPGA"]++;
@@ -158,7 +158,7 @@ void* GetFromFPGAInt(int *A, unsigned PE, bool sync_get)
 void* GetFromFPGAFloat(float *A, unsigned PE, bool sync_get)
 {
     gemx::XTimer t;
-    void * ptr = GEMXHostHandle<float*>::Instance().gh_ptr[PE]->GetMat((float*)A, true, sync_get);
+    void * ptr = GEMXHostHandle<void*>::Instance().gh_ptr[PE]->GetMat(A, true, sync_get);
 #ifdef GEMX_PERF_DBG
     GEMXHostProfiler::Instance().func_time["GetFromFPGA"] += t.elapsed();
     GEMXHostProfiler::Instance().func_calls["GetFromFPGA"]++;
@@ -170,8 +170,8 @@ bool AddFCNOp(void * A, void * B, void *C, void * bias, unsigned int m, unsigned
 {
     gemx::XTimer t;
     //cout << C << " = " << A << " * " << B << " + " << bias << endl;
-    gemx::FCNHost<short*>* fcn_ptr = static_cast< gemx::FCNHost<short*> *> (GEMXHostHandle<short*>::Instance().gh_ptr[PE].get());
-    bool ret = fcn_ptr->AddFCNOp((short*)A, (short*)B,(short*)C, (short*)bias, m,k,n, postScale, postShift, PReLUScale, PReLUAlpha);
+    gemx::FCNHost<void*>* fcn_ptr = static_cast< gemx::FCNHost<void*> *> (GEMXHostHandle<void*>::Instance().gh_ptr[PE].get());
+    bool ret = fcn_ptr->AddFCNOp(A, B, C, bias, m,k,n, postScale, postShift, PReLUScale, PReLUAlpha);
 #ifdef GEMX_PERF_DBG
     GEMXHostProfiler::Instance().func_time["AddFCNOp"] += t.elapsed();
     GEMXHostProfiler::Instance().func_calls["AddFCNOp"]++;
@@ -182,24 +182,13 @@ bool AddFCNOp(void * A, void * B, void *C, void * bias, unsigned int m, unsigned
 bool AddGEMMOp(void * A, void * B, void *C, void * bias, unsigned int m, unsigned int k, unsigned int n, int postScale, int postShift, unsigned PE)
 {
     //cout << C << " = " << A << " * " << B << " + " << bias << endl;
-    return GEMXHostHandle<short*>::Instance().gh_ptr[PE]->AddGEMMOp((short*)A, (short*)B,(short*)C, (short*)bias, m,k,n, postScale, postShift);
+    return GEMXHostHandle<void*>::Instance().gh_ptr[PE]->AddGEMMOp(A, B, C, bias, m,k,n, postScale, postShift);
 }
 
 void Execute (bool sync_exec, unsigned PE)
 {
     gemx::XTimer t;
-    GEMXHostHandle<short*>::Instance().gh_ptr[PE]->Execute(sync_exec);
-#ifdef GEMX_PERF_DBG
-    GEMXHostProfiler::Instance().func_time["Execute"] += t.elapsed();
-    GEMXHostProfiler::Instance().func_calls["Execute"]++;
-#endif
-
-}
-
-void ExecuteFloat (bool sync_exec, unsigned PE)
-{
-    gemx::XTimer t;
-    GEMXHostHandle<float*>::Instance().gh_ptr[PE]->Execute(sync_exec);
+    GEMXHostHandle<void*>::Instance().gh_ptr[PE]->Execute(sync_exec);
 #ifdef GEMX_PERF_DBG
     GEMXHostProfiler::Instance().func_time["Execute"] += t.elapsed();
     GEMXHostProfiler::Instance().func_calls["Execute"]++;
@@ -210,7 +199,7 @@ void ExecuteFloat (bool sync_exec, unsigned PE)
 void Wait (unsigned PE)
 {
     gemx::XTimer t;
-    GEMXHostHandle<short*>::Instance().gh_ptr[PE]->Wait();
+    GEMXHostHandle<void*>::Instance().gh_ptr[PE]->Wait();
 #ifdef GEMX_PERF_DBG
     GEMXHostProfiler::Instance().func_time["Wait"] += t.elapsed();
     GEMXHostProfiler::Instance().func_calls["Wait"]++;
@@ -226,20 +215,19 @@ void PrintStats()
 }
 
 int GetFreq(){
-  return GEMXHostHandle<short*>::Instance().gh_ptr[0]->getBoardFreqMHz(0);
+  return GEMXHostHandle<void*>::Instance().gh_ptr[0]->getBoardFreqMHz(0);
 }
 
 //void DestroyGEMMHost(gemx::GEMMHost<short*> * ptr) {
 //    delete ptr;
 //}
-
 void int16_gemm(short * A, short * B, short *X,
         short * C, unsigned int M, unsigned int K, unsigned int N ) {
     using namespace std;
     using namespace gemx;
 
     cout << "A_ptr: " << A << " B_ptr: " << B << " C_ptr: " << C << " X_ptr: " << X << endl;
-    shared_ptr<GEMMHost<short*>> host_ptr = GEMXHostHandle<short*>::Instance().gh_ptr[0];
+    shared_ptr<GEMMHost<void*>> host_ptr = GEMXHostHandle<void*>::Instance().gh_ptr[0];
 
     host_ptr->SendToFPGA((short*)A, A, sizeof(short)*M*K);
     host_ptr->SendToFPGA((short*)B, B, sizeof(short)*K*N);
