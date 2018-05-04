@@ -43,7 +43,7 @@ if __name__ == '__main__':
   args, xclbin_opts = gemx.processCommandLine()
   gemx.createGEMMHandle(args, xclbin_opts)
   
-  for PE in range(xclbin_opts["GEMX_numKernels"]):
+  for PE in range(int(xclbin_opts["GEMX_numKernels"])):
       test.test_basic_randint( PE, 512, 512, 128, [16,17])
       test.test_basic_randint( PE, 256, 512, 128, [2,18])
       test.test_basic_randint( PE, 2048, 512, 128, [4,18])
