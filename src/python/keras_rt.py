@@ -9,10 +9,10 @@ class KerasRT():
         self.min_m = 32*int(min_m)
         self.min_k = 32*int(min_k)
         self.min_n = 32*int(min_n)
-        print (self.min_m, self.min_k, self.min_n)
         self.min_m = 256
         self.min_k = 256
         self.min_n = 256        
+        
         self.w = [ np.int16(a*b) for a,b in zip(self.w, wgt_scale)]
         self.b = [ np.int32(a*b) for a,b in zip(self.b, wgt_scale)]
     
@@ -23,12 +23,11 @@ class KerasRT():
         in_row, in_col = self.get_padded_shape([batch_sz, keras_model.layers[0].input_shape[1]], self.min_m, self.min_k)
         self.fpga_buf = self.create_buf( self.w, [in_row,in_col])
         self.out_dim = ( batch_sz, keras_model.layers[-1].output_shape[1] )
+        self.kmodel = keras_model
 
     def get_padded_shape ( self, shape, min_row, min_col):
-        #row_padded = int(math.ceil ( shape[0] / min_row ) * min_row ) 
-        #col_padded = int( math.ceil( shape[1] / min_col ) * min_col )
-        row_padded = max ( int(math.pow(2, int(math.log(shape[0], 2))+1)), min_row )
-        col_padded = max ( int(math.pow(2, int(math.log(shape[1], 2))+1)), min_col )        
+        row_padded = int( math.ceil( np.float32(shape[0]) / min_row ) * min_row ) 
+        col_padded = int( math.ceil( np.float32(shape[1]) / min_col ) * min_col )
         return row_padded,col_padded
 
     def format_for_fpga ( self, np_list, min_row, min_col):
@@ -57,7 +56,6 @@ class KerasRT():
         return fpga_buf
     
     def predict ( self, inp, in_scale, post_scale):
-        activations = ['relu', 'relu', 'none']
         row_padded, col_padded = self.get_padded_shape( inp.shape, self.min_m, self.min_k)
         padded_arr = np.zeros ( (row_padded, col_padded), dtype=inp.dtype, order='C')
         padded_arr[0:inp.shape[0], 0:inp.shape[1]] = inp
@@ -65,12 +63,12 @@ class KerasRT():
         print ("input shape", padded_arr.shape)
         np.copyto(self.fpga_buf[0], np.int16( padded_arr * in_scale ), casting='same_kind', where=True)
         gemx.sendMat(self.fpga_buf[0])
-        for i,iw in enumerate(self.w):
-            print ("w" ,i, "shape", iw.shape)
-            if activations[i] == 'relu':
-                gemx.addFCNOp( self.fpga_buf[i], iw, self.fpga_buf[i+1], self.b[i], post_scale[i][0], post_scale[i][1], 0, 0)
+        for i,l in enumerate(self.kmodel.layers):
+            act = l.get_config()['activation']
+            if act == 'relu':
+                gemx.addFCNOp( self.fpga_buf[i], self.w[i], self.fpga_buf[i+1], self.b[i], post_scale[i][0], post_scale[i][1], 0, 0)
             else:
-                gemx.addGEMMOp( self.fpga_buf[i], iw, self.fpga_buf[i+1], self.b[i], post_scale[i][0], post_scale[i][1])
+                gemx.addGEMMOp( self.fpga_buf[i], self.w[i], self.fpga_buf[i+1], self.b[i], post_scale[i][0], post_scale[i][1])
                  
         gemx.execute()
         gemx.getMat (self.fpga_buf[-1])
