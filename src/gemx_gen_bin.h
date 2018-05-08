@@ -29,7 +29,7 @@
 /**
  *  @brief GEMV testcase generator
  *
- *  $DateTime: 2018/03/17 10:00:44 $
+ *  $DateTime: 2018/05/08 03:56:09 $
  */
 
 #ifndef GEMX_GEN_BIN_H
@@ -1445,10 +1445,9 @@ class SpMatUram
 		Tdata *m_DataAddr;
 		Tidx  *m_IdxAddr;
 	public:
-		static const unsigned int t_NumData = (sizeof(GEMX_idxType)/sizeof(GEMX_dataType))*2*GEMX_ddrWidth+GEMX_ddrWidth;
-		static const unsigned int t_NumIdx = 3 * GEMX_ddrWidth / (sizeof(GEMX_idxType)/sizeof(GEMX_dataType));
-		static const unsigned int t_NumUramPerDdr = GEMX_ddrWidth / (8/sizeof(Tdata));
-		static const unsigned int t_InterLeaves = GEMX_spmvUramGroups * (8/sizeof(GEMX_dataType)); 
+		static const unsigned int t_NumData = (sizeof(GEMX_idxType)*2/sizeof(GEMX_dataType))*GEMX_ddrWidth+GEMX_ddrWidth;
+		static const unsigned int t_NumIdx = (sizeof(GEMX_idxType)*2/sizeof(GEMX_dataType)+1)*sizeof(GEMX_dataType)*GEMX_ddrWidth / sizeof(GEMX_idxType);
+		static const unsigned int t_NumUramPerDdr = GEMX_ddrWidth / (8/sizeof(Tdata)); 
   public:
     SpMatUram(){}
     SpMatUram(unsigned int p_Rows, unsigned int p_Cols, unsigned int p_Nnz, Tdata *p_DataAddr)
@@ -1509,7 +1508,7 @@ class SpMatUram
 	    			row--;
 	  			}
         }
-        fillFromVectorWithReorder(l_rows);
+        fillFromVector(l_rows);
       }
     void
     fillFromVector(std::vector<MtxRow> p_Rows) {
@@ -1517,58 +1516,27 @@ class SpMatUram
       for (unsigned int i = 0; i < m_Nnz; ++i) {
       	MtxRow l_row = p_Rows[i];
         getVal(i) = l_row.getVal();
-				getCol(i) = l_row.getCol();
 				getRow(i) = l_row.getRow();        
+				getCol(i) = l_row.getCol();
     	}
 		}
     
 		void
     fillFromVectorWithReorder(std::vector<MtxRow> p_Rows) {
     	assert(p_Rows.size() ==  nnz());
-			
-			unsigned int n=0;
-			unsigned int m=0;
-			MtxRow l_curRow;
-			unsigned int l_rowIndex=0;
-			unsigned int l_colIndex=0;
-			unsigned int l_nextRowIndex = 0;
-			unsigned int l_nextColIndex = 0;
-			while (n < m_Nnz) {
-				m = n;
-				if ( (n % (t_InterLeaves * GEMX_spmvUramGroups)) == 0) {
-					if ((n>0) && (p_Rows[n].getRow() != p_Rows[n-(t_InterLeaves * GEMX_spmvUramGroups)].getRow())) {
-						if ((n+(t_InterLeaves * GEMX_spmvUramGroups)) > p_Rows.size()) {
-							sort(p_Rows.begin()+n, p_Rows.end());
-						} else {
-							sort(p_Rows.begin()+n, p_Rows.begin()+n+(t_InterLeaves * GEMX_spmvUramGroups)-1);
-						}
+			unsigned int i=0;
+			unsigned int l_blocks = m_Nnz / (t_NumUramPerDdr * t_NumUramPerDdr);
+      for (unsigned int c = 0; c < t_NumUramPerDdr; ++c) {
+				for (unsigned int b = 0; b < l_blocks; ++b) {
+					for (unsigned int r = 0; r < t_NumUramPerDdr; ++r) {
+						MtxRow l_row = p_Rows[i];
+						i++;
+						getVal(b*t_NumUramPerDdr*t_NumUramPerDdr+r*t_NumUramPerDdr+c) = l_row.getVal();
+						getRow(b*t_NumUramPerDdr*t_NumUramPerDdr+r*t_NumUramPerDdr+c) = l_row.getRow();
+						getCol(b*t_NumUramPerDdr*t_NumUramPerDdr+r*t_NumUramPerDdr+c) = l_row.getCol();
 					}
-					l_curRow = p_Rows[n];
-					l_rowIndex = l_curRow.getRow();
-					l_colIndex = l_curRow.getCol();
-				}
-				else {
-					do {
-						l_curRow = p_Rows[m];
-						l_nextRowIndex = l_curRow.getRow();
-						l_nextColIndex = l_curRow.getCol();
-						m++;
-					} while (((l_nextRowIndex <= l_rowIndex) || (l_nextColIndex <= l_colIndex)) && (m < p_Rows.size()));
-					m--;
-					p_Rows[m] = p_Rows[n];
-					p_Rows[n] = l_curRow;	
-					l_rowIndex = l_nextRowIndex;
-					l_colIndex = l_nextColIndex;
-				}	
-				n++;
-			}
-
-			for (unsigned int i=0; i<m_Nnz; ++i) {
-				l_curRow = p_Rows[i];
-				getVal(i) = l_curRow.getVal();
-				getRow(i) = l_curRow.getRow();
-				getCol(i) = l_curRow.getCol();
-			}
+				}        
+    	}
 		}
 
     std::vector<MtxRow>
@@ -1919,7 +1887,7 @@ SpMatType_ForFloat::fillMod(float p_Max) {
       row--;
     }
   }
-  fillFromVectorWithReorder(l_rows);
+  fillFromVector(l_rows);
 }
 
 typedef MatUram<GEMX_dataType, GEMX_idxType> MatType;
@@ -2015,7 +1983,7 @@ class GenSpmvUram
     // Allocate all pages before getting any address
     bool l_newAllocA, l_newAllocB, l_newAllocC;
     
-		unsigned int l_pageA = p_Program.allocPages(p_handleA, l_newAllocA, p_Nnz+p_Nnz*2*(sizeof(GEMX_idxType)/sizeof(GEMX_dataType)));
+		unsigned int l_pageA = p_Program.allocPages(p_handleA, l_newAllocA, p_Nnz+p_Nnz*2*sizeof(GEMX_idxType)/sizeof(GEMX_dataType));
     // B, C
     unsigned int l_pageB = p_Program.allocPages(p_handleB, l_newAllocB, p_K * 1);
     unsigned int l_pageC = p_Program.allocPages(p_handleC, l_newAllocC, p_M * 1);

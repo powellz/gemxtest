@@ -200,8 +200,7 @@ class SpmvCoo
 		mergeIdxData(DdrWideStreamType &p_inS, unsigned int p_nnzBlocks, 
 								SpmCooWideStreamType &p_spmCooS) {
 			
-			assert ((t_DdrWidth % t_NumIdxPerDdr) == 0);
-			assert ((t_NumIdxPerDdr % 2) == 0);
+			assert ((t_DdrWidth % t_NumIdxPairPerDdr) == 0);
 			WideConv<DdrWideType, IdxWideType> l_conv;
 
 			unsigned int l_nnzWords = p_nnzBlocks * t_NnzWords;

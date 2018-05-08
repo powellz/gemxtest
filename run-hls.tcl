@@ -24,13 +24,13 @@
 #     vivado_hls -f run-hls.tcl  "doCsim 1  doRTLsynth 0"
 #     vivado_hls -p prj_hls_ku115_4x4 &
 #   Build 32x32
-#     vivado_hls -f run-hls.tcl "doCsim 0  doRTLsynth 1   ddrWidth 32  argInstrWidth 1  gemvVectorBlocks 32  gemmMeshRows 32  gemmMeshCols 32  gemmMeshDepth 32 transpBlocks 1"
+#     vivado_hls -f run-hls.tcl "doCsim 0  doRTLsynth 1   ddrWidth 32  argInstrWidth 1  gemvVectorBlocks 32  transpBlocks 1"
 #     vivado_hls -p prj_hls_ku115_32x32 &
 #   Build 8x8
-#     vivado_hls -f run-hls.tcl "doCsim 1  doRTLsynth 0   ddrWidth 8  argInstrWidth 4  gemvVectorBlocks 8  gemmMeshRows 8  gemmMeshCols 8  gemmMeshDepth 8 transpBlocks 1"
+#     vivado_hls -f run-hls.tcl "doCsim 1  doRTLsynth 0   ddrWidth 8  argInstrWidth 4  gemvVectorBlocks 8 transpBlocks 1"
 #     vivado_hls -p prj_hls_ku115_8x8 &
 #   Build 16x16
-#     vivado_hls -f run-hls.tcl "doCsim 1  doRTLsynth 0   ddrWidth 16  argInstrWidth 2  gemvVectorBlocks 16  gemmMeshRows 16  gemmMeshCols 16  gemmMeshDepth 16 transpBlocks 1"
+#     vivado_hls -f run-hls.tcl "doCsim 1  doRTLsynth 0   ddrWidth 16  argInstrWidth 2  gemvVectorBlocks 16 transpBlocks 1"
 #     vivado_hls -p prj_hls_ku115_16x16 &
 
 #  A simple way to build and debug a specific configuration as seen in regressions/*/run.sh
@@ -50,7 +50,11 @@ set GCC_VERSION 6.2.0
 array set opt {
   dataType        short
   dataEqIntType   short
-  ddrWidth        4
+	XdataType				int32_t
+  ddrWidth     4
+	XddrWidth		 2
+	macBits			 48
+	keepMacBits				0
   argInstrWidth   8   
   numInstr       16
   numKernels      1
@@ -61,13 +65,10 @@ array set opt {
   gemvkVectorBlocks 512
   gemvmVectorBlocks 512
   gemvmGroups      1
-  gemmMeshRows     4
-  gemmMeshCols     4
-  gemmMeshDepth    4
   gemmMBlocks	   1
   gemmKBlocks	   2
   gemmNBlocks	   1
-  splitMesh	   0 
+  splitMesh		   0 
   transpBlocks 1
   spmvWidth            1
   spmvkVectorBlocks  512
@@ -76,8 +77,13 @@ array set opt {
   spmvPadA             1
   spmvNumCblocks    1024
   spmvFloatPerDesc     4
+	idxType 					int	
+	nnzBlocks 				8
+	spmvKmaxBlocks 		512	
+	spmvMmaxBlocks 		512
+	spmvUramGroups		6
+	useURAM					0
   argPipeline  2
-  useURAM     0
   part        ku115
   doCsim      0
   doRTLsynth  1
@@ -108,7 +114,7 @@ set CFLAGS_K "-I $pwd/src  $OPT_FLAGS -D GEMX_kernelId=0 "
 set CFLAGS_H "$CFLAGS_K -g -I $BOOST_SRC"
 
 
-set proj_dir [format prj_hls_%s_%sx%s  $opt(part) $opt(gemmMeshRows) $opt(gemmMeshCols) ]
+set proj_dir [format prj_hls_%s  $opt(part) ]
 open_project $proj_dir -reset
 set_top gemxKernel_0
 
@@ -134,7 +140,8 @@ set run_args "gemx.xclbin $pwd/out_host/app.bin $pwd/$proj_dir/app_out.bin"
 
 if {$opt(doCsim)} {
   puts "***** C SIMULATION *****"
-  csim_design -ldflags "-L$BOOST_LIB -lboost_iostreams -lz -lrt -L/usr/lib64 -lstdc++ -Wl,--rpath=${BOOST_LIB} -Wl,--rpath=/usr/lib64" -argv "$run_args"
+  csim_design -ldflags "-L$BOOST_LIB -lboost_iostreams -lz -lrt -L/tools/batonroot/rodin/devkits/lnx64/gcc-${GCC_VERSION}/lib64 -lstdc++ -Wl,--rpath=${BOOST_LIB} \
+              -Wl,--rpath=/tools/batonroot/rodin/devkits/lnx64/gcc-${GCC_VERSION}/lib64" -argv "$run_args"
 }
 
 if {$opt(doRTLsynth)} {
