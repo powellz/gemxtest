@@ -13,33 +13,26 @@ def common_spmv(row,col,data,m,k,nnz,vector_range,dtype):
   if dtype == np.int32:
      B = np.random.randint(low=-vector_range, high=vector_range, size=(k, 1), dtype=np.int32)
      C = np.zeros ((m, 1), dtype=np.int32)
-     gemx.sendSparse(row,col,data,m,k,nnz,B,C,0)
-     gemx.execute(0)
-     gemx.getMat(C,0)
+     A = gemx.sendSpMat(row,col,data,nnz,dtype)
+     gemx.sendMat(B)
+     gemx.sendMat(C)
+     gemx.addSPMVOp(A,B,C,nnz)
+     gemx.execute()
+     gemx.getMat(C)
      test.multiply_and_cmp_spmv(row,col,data,m,k,nnz,B,C)
   elif dtype == np.float32:
      B = np.zeros ((k, 1), dtype=np.float32)
-     fillMod(B,k,vector_range)
+     test.fillMod(B,k,vector_range)
      C = np.zeros ((m, 1), dtype=np.float32)
-     gemx.sendSparse(row,col,data,m,k,nnz,B,C,0)
-     gemx.execute(0)
-     gemx.getMat(C,0)
+     A = gemx.sendSpMat(row,col,data,nnz,dtype)
+     gemx.sendMat(B)
+     gemx.sendMat(C)
+     gemx.addSPMVOp(A,B,C,nnz)
+     gemx.execute()
+     gemx.getMat(C)
      test.multiply_and_cmp_spmv(row,col,data,m,k,nnz,B,C)
   else:
      raise TypeError("type", dtype, "not supported") 
-
-def fillMod(B,size,Max):
-  l_val = 1.0
-  l_step = 0.3
-  l_drift = 0.00001
-  l_sign = 1
-  for i in range(size):
-     B[i,0] = l_val
-     l_val += l_sign * l_step
-     l_step += l_drift
-     l_sign = -l_sign;
-     if l_val > Max:
-        l_val -= Max
 
 def test_spmv_mtxfile(mtxpath,vector_range,dtype):
   matA = sio.mmread(mtxpath)
@@ -94,9 +87,10 @@ if __name__ == '__main__':
   #mtx file must be in Matrix Market format
   test_spmv_mtxfile("./data/spmv/mario001.mtx",32764,np.float32) 
   test_spmv_mtxfile("./data/spmv/image_interp.mtx",32764,np.float32) 
-  #test_spmv_mtxfile("./data/spmv/raefsky3.mtx",2,np.float32) # seg error on execute()
-  #test_spmv_mtxfile("./data/spmv/stomach.mtx",2,np.float32) # seg error on execute()
-  #test_spmv_mtxfile("./data/spmv/torso3.mtx",2,np.float32) # seg error on execute()  
+  #test_spmv_mtxfile("./data/spmv/raefsky3.mtx",32764,np.float32) 
+  #test_spmv_mtxfile("./data/spmv/stomach.mtx",32764,np.float32)  
+  #test_spmv_mtxfile("./data/spmv/torso3.mtx",32764,np.float32)  
   
   test_spmv(96,128,256,32764,np.float32)
   test_spmv(65472,65472,500000,32764,np.float32) 
+  test_spmv(12800,12800,1400000,32764,np.float32) 

@@ -109,16 +109,28 @@ void SendToFPGAInt(int *A, unsigned long long num_elem, unsigned PE,bool sync_se
 
 }
 
-void SendSpToFpgaInt(int *row, int *col, float *data, unsigned int m, unsigned int k, unsigned int nnz,void * B, void * C, unsigned PE){
-    gemx::SPMVHost<void*>* spmv_ptr = static_cast< gemx::SPMVHost<void*> *> (GEMXHostHandle<void*>::Instance().gh_ptr[PE].get());
-    spmv_ptr->SendSpToFpgaInt(row,col,data,m,k,nnz,(int*)B,(int*)C);
+void SendToFPGAFloat(float *A, unsigned long long num_elem, unsigned PE,bool sync_send)
+{
+    gemx::XTimer t;
+    GEMXHostHandle<void*>::Instance().gh_ptr[PE]->SendToFPGA(A, A, sizeof(float) *num_elem, sync_send);
+#ifdef GEMX_PERF_DBG
+    GEMXHostProfiler::Instance().func_time["SendToFPGAFloat"] += t.elapsed();
+    GEMXHostProfiler::Instance().func_calls["SendToFPGAFloat"]++;
+#endif
+
 }
 
-void SendSpToFpgaFloat(int *row, int *col, float *data, unsigned int m, unsigned int k, unsigned int nnz,void * B, void * C, unsigned PE){
+void* SendSpToFpgaFloat(int *row, int *col, float *data, unsigned int nnz, unsigned PE){
     gemx::SPMVHost<void*>* spmv_ptr = static_cast< gemx::SPMVHost<void*> *> (GEMXHostHandle<void*>::Instance().gh_ptr[PE].get());
-    spmv_ptr->SendSpToFpgaFloat(row,col,data,m,k,nnz,(float*)B,(float*)C);
+    void* ret = spmv_ptr->SendSpToFpgaFloat(row,col,data,nnz);
+    return ret;
 }
 
+void* SendSpToFpgaInt(int *row, int *col, float *data, unsigned int nnz, unsigned PE){
+    gemx::SPMVHost<void*>* spmv_ptr = static_cast< gemx::SPMVHost<void*> *> (GEMXHostHandle<void*>::Instance().gh_ptr[PE].get());
+    void* ret = spmv_ptr->SendSpToFpgaInt(row,col,data,nnz);
+    return ret;
+}
 
 /*
 void SendToFPGAShrt_dbg(char * name, short *A, int m, int n, bool sync_send){
@@ -182,6 +194,13 @@ bool AddGEMMOp(void * A, void * B, void *C, void * bias, unsigned int m, unsigne
 {
     //cout << C << " = " << A << " * " << B << " + " << bias << endl;
     return GEMXHostHandle<void*>::Instance().gh_ptr[PE]->AddGEMMOp(A, B, C, bias, m,k,n, postScale, postShift);
+}
+
+bool AddSPMVOp(void *A, void * B, void *C, unsigned int m, unsigned int k, unsigned int nnz, unsigned PE)
+{
+    gemx::SPMVHost<void*>* spmv_ptr = static_cast< gemx::SPMVHost<void*> *> (GEMXHostHandle<void*>::Instance().gh_ptr[PE].get());
+    bool ret = spmv_ptr->AddSPMVOp(A, B, C, m, k, nnz);
+    return ret;
 }
 
 void Execute (bool sync_exec, unsigned PE)
