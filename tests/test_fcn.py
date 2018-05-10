@@ -29,8 +29,8 @@ def test_multiInstrv1(int_range, m, k, n, add_bias=False):
     gemx.sendMat(D)    
     gemx.sendMat(E)
     gemx.sendMat(b1)         
-    gemx.addFCNOp(A, B, C, b0, 1, 0, 1, 0)
-    gemx.addFCNOp(D, C, E, b1, 1, 0, 1, 0)
+    gemx.addFCNOp(A, B, C, b0, 1, 13, 307, 10)
+    gemx.addFCNOp(D, C, E, b1, 1, 18, 307, 10)
     gemx.execute()
     gemx.getMat(C)
     gemx.getMat(E)
@@ -114,10 +114,10 @@ if __name__ == '__main__':
   args, xclbin_opts = gemx.processCommandLine()
   gemx.createFCNHandle( args, xclbin_opts)
 
-  for i in range (int(xclbin_opts["GEMX_numKernels"])):
-      for j in range (1,30):
-          for k in range(1,18):
-              for n in range(1000):
+  for j in range (1,30):
+      for k in range(1,18):
+          for n in range(1000):
+              for i in range (int(xclbin_opts["GEMX_numKernels"])):
                   test.test_rand_basic( i, xclbin_opts, [j,k], 2048)    
       
   # test.test_rand_basic (32764, 0, 5, [1,0]) # larger matrix size will lead to hw timeout error in regression test
