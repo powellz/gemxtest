@@ -11,12 +11,10 @@ class GEMXManager:
     self._lib = cdll.LoadLibrary(libFile)
     self._lib.MakeFCNHost.argtypes = [c_char_p, c_char_p,c_uint]
     self._lib.MakeGEMMHost.argtypes = [c_char_p, c_char_p, c_uint]
-    self._lib.MakeSPMVHost.argtypes = [c_char_p, c_char_p, c_uint]
-                
+    self._lib.MakeSPMVHost.argtypes = [c_char_p, c_char_p, c_uint]                
     self._lib.SendToFPGAShrt.argtypes = [np.ctypeslib.ndpointer(c_short, flags="C_CONTIGUOUS"), c_ulonglong, c_uint, c_bool]
     self._lib.SendToFPGAInt.argtypes = [np.ctypeslib.ndpointer(c_int, flags="C_CONTIGUOUS"), c_ulonglong, c_uint, c_bool]
-    
-    
+    self._lib.SendToFPGAFloat.argtypes = [np.ctypeslib.ndpointer(c_float, flags="C_CONTIGUOUS"), c_ulonglong, c_uint, c_bool]
     self._lib.AddFCNOp.argtypes = [np.ctypeslib.ndpointer(c_short, flags="C_CONTIGUOUS"),  
                                    np.ctypeslib.ndpointer(c_short, flags="C_CONTIGUOUS"), 
                                    np.ctypeslib.ndpointer(c_short, flags="C_CONTIGUOUS"), 
@@ -28,20 +26,21 @@ class GEMXManager:
                                    np.ctypeslib.ndpointer(c_short, flags="C_CONTIGUOUS"), 
                                    np.ctypeslib.ndpointer(c_int, flags="C_CONTIGUOUS"), 
                                    c_uint, c_uint, c_uint, c_int, c_int, c_uint]
-                                   
-    self._lib.SendSpToFpgaInt.argtypes = [np.ctypeslib.ndpointer(c_int, flags="C_CONTIGUOUS"),
-                                       np.ctypeslib.ndpointer(c_int, flags="C_CONTIGUOUS"),
-                                       np.ctypeslib.ndpointer(c_float, flags="C_CONTIGUOUS"),c_uint,c_uint,c_uint,
-                                       np.ctypeslib.ndpointer(c_int32, flags="C_CONTIGUOUS"),
-                                       np.ctypeslib.ndpointer(c_int32, flags="C_CONTIGUOUS"),c_uint]
+    self._lib.AddSPMVOp.argtypes = [c_void_p, 
+                                   np.ctypeslib.ndpointer(flags="C_CONTIGUOUS"), 
+                                   np.ctypeslib.ndpointer(flags="C_CONTIGUOUS"),  
+                                   c_uint, c_uint, c_uint, c_uint]                                                                 
     self._lib.SendSpToFpgaFloat.argtypes = [np.ctypeslib.ndpointer(c_int, flags="C_CONTIGUOUS"),
                                        np.ctypeslib.ndpointer(c_int, flags="C_CONTIGUOUS"),
-                                       np.ctypeslib.ndpointer(c_float, flags="C_CONTIGUOUS"),c_uint,c_uint,c_uint,
-                                       np.ctypeslib.ndpointer(c_float, flags="C_CONTIGUOUS"),
-                                       np.ctypeslib.ndpointer(c_float, flags="C_CONTIGUOUS"),c_uint]
+                                       np.ctypeslib.ndpointer(c_float, flags="C_CONTIGUOUS"),c_uint,c_uint]
+    self._lib.SendSpToFpgaInt.argtypes = [np.ctypeslib.ndpointer(c_int, flags="C_CONTIGUOUS"),
+                                       np.ctypeslib.ndpointer(c_int, flags="C_CONTIGUOUS"),
+                                       np.ctypeslib.ndpointer(c_float, flags="C_CONTIGUOUS"),c_uint,c_uint]
+    self._lib.SendSpToFpgaFloat.restype = c_void_p
+    self._lib.SendSpToFpgaInt.restype = c_void_p  
     self._lib.AddFCNOp.restype = c_bool
     self._lib.AddGEMMOp.restype = c_bool
-    
+    self._lib.AddSPMVOp.restype = c_bool
     self._lib.Execute.argtypes = [c_bool, c_uint]
     self._lib.GetFromFPGA.argtypes = [np.ctypeslib.ndpointer(c_short, flags="C_CONTIGUOUS"), c_uint, c_bool]
     self._lib.GetFromFPGA.restype = c_void_p
@@ -73,6 +72,9 @@ class GEMXManager:
   
   def addGEMMOp(self, A, B, C, bias, postScale, postShift, PE):
     return self._lib.AddGEMMOp(A,B, C, bias, c_uint(A.shape[0]), c_uint( A.shape[1] ), c_uint( B.shape[1]), c_int(postScale), c_int(postShift), c_uint(PE))
+  
+  def addSPMVOp(self, A,B,C,nnz,PE=0):
+    return self._lib.AddSPMVOp(A,B,C,c_uint(C.shape[0]),c_uint(B.shape[0]),c_uint(nnz),c_uint(PE))
     
   def execute(self, PE, sync_exec = True):
     self._lib.Execute(sync_exec, PE)
@@ -87,15 +89,17 @@ class GEMXManager:
     if A.dtype == np.int32:
         self._lib.SendToFPGAInt( A, c_ulonglong(A.size), c_uint(PE), sync_send )
     elif A.dtype == np.int16:
-        self._lib.SendToFPGAShrt( A, c_ulonglong(A.size), c_uint(PE), sync_send )        
+        self._lib.SendToFPGAShrt( A, c_ulonglong(A.size), c_uint(PE), sync_send ) 
+    elif A.dtype == np.float32:
+        self._lib.SendToFPGAFloat( A, c_ulonglong(A.size), c_uint(PE), sync_send ) 
     else:
         raise TypeError("type", A, "not supported")
-        
-  def sendSparse(self,row,col,data,m,k,nnz,B,C,PE):
-     if B.dtype == np.int32:
-        self._lib.SendSpToFpgaInt(row,col,data,m,k,nnz,B,C, c_uint(PE))   
-     elif B.dtype == np.float32:
-        self._lib.SendSpToFpgaFloat(row,col,data,m,k,nnz,B,C, c_uint(PE))
+      
+  def sendSpMat(self,row,col,data,nnz,dtype,PE):
+     if dtype == np.int32:
+        return self._lib.SendSpToFpgaInt(row,col,data,nnz,c_uint(PE))   
+     elif dtype == np.float32:     
+        return self._lib.SendSpToFpgaFloat(row,col,data,nnz,c_uint(PE))
      else:
         raise TypeError("type", A, "not supported") 
           
@@ -120,8 +124,8 @@ _gemxManager = None
 def sendMat ( A,PE=0,sync_send=False):
     _gemxManager.sendMat(A,PE,sync_send)
     
-def sendSparse (row,col,data,m,k,nnz,B,C,PE=0):
-    _gemxManager.sendSparse(row,col,data,m,k,nnz,B,C,PE)
+def sendSpMat (row,col,data,nnz,dtype,PE=0):
+    return _gemxManager.sendSpMat(row,col,data,nnz,dtype,PE)
 
 def getMat (A, PE=0, sync_get = True):
     return _gemxManager.getMat(A, PE,sync_get)
@@ -131,6 +135,9 @@ def addFCNOp( A,B,C, bias, postScale, postShift, PReLUScale, PReLUAlpha,PE=0):
     
 def addGEMMOp( A,B,C, bias, postScale, postShift,PE=0):
     _gemxManager.addGEMMOp(A, B, C, bias, postScale, postShift, PE)
+
+def addSPMVOp( A,B,C,nnz,PE=0):
+    _gemxManager.addSPMVOp(A,B,C,nnz,PE)
     
 def execute(PE=0, sync_exec = True):
     _gemxManager.execute( PE, sync_exec)

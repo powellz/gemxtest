@@ -169,6 +169,19 @@ class SpmvTest(Test):
       for i in range(nnz):
         C_cpu[row[i]] += B[col[i]] * data_cpu[i]
       self.cmpWithinTolerance(C, C_cpu)
+      
+  def fillMod(self,B,size,Max):
+      l_val = 1.0
+      l_step = 0.3
+      l_drift = 0.00001
+      l_sign = 1
+      for i in range(size):
+        B[i,0] = l_val
+        l_val += l_sign * l_step
+        l_step += l_drift
+        l_sign = -l_sign;
+        if l_val > Max:
+          l_val -= Max
 
         
 class GemmTest(Test):               
