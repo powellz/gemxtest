@@ -16,7 +16,7 @@ This user guide contains the following sections:
 The GEMX engine library provides building blocks for constructing matrix operation accelerators on FPGAs. Each engine is implemented as a C++ template class and used to accelerate one type of matrix operations, e.g. matrix matrix multiplication, matrix vector multiplication and etc. To use this engine library to build an FPGA image, a SDAccel supported platform is required. The Makefile provided in gemx/ folder automates the flow for generating the FPGA image with the selected engines and SDAccel platforms.
  
 ## 2. GEMX ENGINES IN DETAILS
-Each GEMX dense matrix engine (GEMM, GEMV, TRANSP) applies block-wise matrix computation algorithm to tile the matrices into small blocks, buffer them locally and process them with fully pipelined logic. The template parameters of each engine class allow users to configure the matrix block size, hence the local buffer size. The top function of each engine has BLAS-like interfaces, which normally include memory pointers for input and output matrices and size and lead dimension information of the matrices and vectors. The architecture of each engine normally includes three components connected by FIFOS. They are *load*, *compute* and *store/write* functions. The load function retrieve matrices and vectores from device memory, in this case DDR, tiles them into small blocks and transmit the block data to the compute function via a FIFO. The compute function retrieves the block data from its FIFO and performs required matrix operations and passes the results to the write function via a FIFO. The store or write function reads the block data from its FIFO, assembles them if necessary and writes the results back to the device memory.  
+Each GEMX dense matrix engine (GEMM, GEMV, TRANSP) applies block-wise matrix computation algorithm to tile the matrices into small blocks, buffer them locally and process them with fully pipelined logic. The template parameters of each engine class allow users to configure the matrix block size, hence the local buffer size. The top function of each engine has BLAS-like interfaces, which normally include memory pointers for input and output matrices and size and lead dimension information of the matrices and vectors. The architecture of each engine normally includes three components connected by FIFOS. They are *load*, *compute* and *store/write* functions. The load function retrieves matrices and vectores from device memory, in this case DDR, tiles them into small blocks and transmits the block data to the compute function via a FIFO. The compute function retrieves the block data from its FIFO and performs required matrix operations and passes the results to the write function via a FIFO. The store or write function reads the block data from its FIFO, assembles them if necessary and writes the results back to the device memory.  
 
 ### 2.1 GEMM ENGINE
 The GEMM engine is implemented by class Gemm in file gemx_gemm.h. The top function *runGemm* implements matrix matrix multiplications on an FGPA. The items below list the supported operations, the template parameters, the functions and the features of the Gemm class
@@ -35,7 +35,7 @@ Parameter definition | Description | Configuration in Makefile
 typename t_FloatType | A, B and C matrix element type. | configured by GEMX_dataType.<br> default value is short.
 typename t_FloatEqIntType | the integer type that has the same bit width as the t_FloatType. | configured by GEMX_dataEqIntType. <br> default value is short.
 typename t_XdataType | matrix X element type. | configured by GEMX_XdataType.<br> default value is int32_t. 
-unsigned int t_DdrWidth | number of matrix A, B or C elements in a memory word retrieved from one DDR.<br> given DDR memory word is 64 bytes, t_DdrWidth = 64/sizeof(t_FloatType). | configured by GEMX_ddrWidth.<br> default value is 4.
+unsigned int t_DdrWidth | number of matrix A, B or C elements in a memory word retrieved from one DDR access.<br> given DDR memory word is 64 bytes, t_DdrWidth = 64/sizeof(t_FloatType). | configured by GEMX_ddrWidth.<br> default value is 32.
 unsigned in t_XDdrWidth | number of matrix X elements in a memory word retrieved from one DDR access.<br> given DDR memory word is 64 bytes, t_XDdrWidth = 64/sizeof(t_XDataType). | configured by GEMX_XddrWidth.<br> default value is 16.
 unsigned int t_aColMemWords | number of memory words that form the columns of the local block buffer for matrix A. | configured by GEMX_gemmKBlocks.<br> default value is 1.
 unsigned int t_aRowMemWords | number of memory words that form the rows of the local block buffer for matrix A. | configured by GEMX_gemmMBlocks.<br> default value is 2.
@@ -60,16 +60,16 @@ runGemm | *DdrWideType \*p_DdrRd*: memory pointer used to read matrices from the
   * minimum matrix size
     * A : (t_DdrWidth) x (t_DdrWidth * 2)
     * B : (t_DdrWidth * 2) x (t_DdrWidth)
-		* X : (t_DdrWidth) x (t_DdrWidth)
+	* X : (t_DdrWidth) x (t_DdrWidth)
   * maximum matrix size
     * A : 2^31 bytes 
     * B : 2^31 bytes
-		* X : 2^31 bytes
+	* X : 2^31 bytes
   * minimum block buffer size
     * A : (t_DdrWidth) x (t_DdrWidth * 2)
     * B : (t_DdrWidth*2) x (t_DdrWidth)
     * C : (t_DdrWidth) x (t_DdrWidth)
-		* X : (t_DdrWidth) x (t_DdrWidth)
+	* X : (t_DdrWidth) x (t_DdrWidth)
   * optimal block buffer size
     * for t_DdrWidth == 32, the configuration with t_aColMemWords=4, t_aRowMemWords=4 and t_bColMemWords=4 provides enough buffering to achieve 99% compute efficiency, meaning almost no overhead for accessing the device memory.
     * the maximum block buffer size is limited by the number of BRAMs you have on an FPGA platform.
@@ -171,7 +171,7 @@ runTransp | *DdrWideType \*p_DdrRd*: memory pointer used to read matrices from t
     * A: multiple of (t_rowMemWords * t_DdrWidth) x (t_colMemWords * t_DdrWidth)
 
 ### 2.4 SPMV ENGINE
-The SPMV engine has two, BRAM-based and URAM-based implementations. Here BRAM or URAM refers to the type on-chip memory used to store the vectors. BRAM-based implementation can by found in file gemx_spmv.h. URAM-based implementation can be found in file gemx_spmv_coo.h. Definition GEMX_useURAM is used to select one of these implementations at compile time. When GEMX_useURAM=0, BRAM-based implementation is used, otherwise URAM-based implementation is used to build an FPGA image.
+The SPMV engine has two, BRAM-based and URAM-based, implementations. Here BRAM or URAM refers to the on-chip memory used to store the vectors. BRAM-based implementation can be found in file gemx_spmv.h. URAM-based implementation can be found in file gemx_spmv_coo.h. Definition GEMX_useURAM is used to select one of these implementations at compile time. When GEMX_useURAM=0, BRAM-based implementation is used, otherwise URAM-based implementation is used to build an FPGA image.
 
 * Supported operations
 ```
@@ -182,10 +182,10 @@ where
 #### 2.4.1 BRAM-based SPMV implementation (see class Spmv in gemx_spmv.h)
 * Storage
 	* Sparse matrix format: coordinate formate
-	* Sparse matrix representation: each sparse matrix entry is encoded as a three element tuple <val, row, col>, and stored in DDR as a sequence of those tuples.
+	* Sparse matrix representation: each sparse matrix entry is encoded as a three-element tuple <val, row, col>, and stored in DDR as a sequence of those tuples.
 	* Sparse matrix index bits: each row or col index in the tuple is encoded with 16-bit unsigned integer.
 	* Vector B: vector B is completely loaded from DDR into BRAM
-	* Vector C: vector C is block-wise loaded from DDR into BRAM. A sparse matrix description struct SpmvAdesc is created and stored in DDR for recording the corresponding sparse matrix block.
+	* Vector C: vector C is block-wise loaded from DDR into BRAM. A sparse matrix description struct SpmvAdesc is created and stored in DDR for storing the corresponding sparse matrix block information.
 
 * Template parameters
 
@@ -193,8 +193,8 @@ Parameter definition | Description | Configuration in Makefile
 ---------------------|-------------|--------------------------
 typename t_FloatType | A, B, C element value type. | configured by GEMX_dataType.<br> default value is short.
 typename t_FloatEqIntType | the integer type that has the same bit width as the t_FloatType. | configured by GEMX_dataEqIntType. <br> default value is short.
-unsigned int t_DdrWidth | number of B or C elements in a memory word retrieved from one DDR.<br> given DDR memory word is 64 bytes, t_DdrWidth = 64/sizeof(t_FloatType). | configured by GEMX_ddrWidth.<br> default value is 32.
-unsigned int t_SpmvWidth | number of sparse matrix element tuples, <val, row, col>,  retrieved in one DDR access. | configured by GEMX_spmvWidth.<br> default value is 1.
+unsigned int t_DdrWidth | number of B or C elements in a memory word retrieved from one DDR access.<br> given DDR memory word is 64 bytes, t_DdrWidth = 64/sizeof(t_FloatType). | configured by GEMX_ddrWidth.<br> default value is 32.
+unsigned int t_SpmvWidth | number of sparse matrix element tuples, <val, row, col>,  retrieved in one DDR access. | configured by GEMX_spmvWidth.<br> default value is 8.
 unsigned int t_kVectorBlocks | max length of the B vector. | configured by GEMX_spmvkVectorBlocks.<br> default value is 2048.
 unsigned int t_mVectorBlocks | max length of the C vector. | configured by GEMX_spmvmVectorBlocks.<br> GEMX_spmvmVectorBlocks=((1 << (16 - GEMX_spmvColAddIdxBits)) / GEMX_spmvWidth / GEMX_spmvMacGroups / GEMX_ddrWidth) 
 unsigned int t_MacGroups | number of accumulation engines to achieve fully pipelined MAC operations. | configured by GEMX_spmvMacGroups.<br> default value is 12.<br> Default value is decided by the latency of accumulation operation.
@@ -232,7 +232,7 @@ Parameter definition | Description | Configuration in Makefile
 ---------------------|-------------|--------------------------
 typename t_FloatType | A, B, C element value type. | configured by GEMX_dataType.<br> default value is short.
 typename t_IdxType | data type used for storing the col and row indices of each sparse matrix entry. | configured by GEMX_idexType.<br> default value is int32_t.
-unsigned int t_DdrWidth | number of B or C elements in a memory word retrieved from one DDR.<br> given DDR memory word is 64 bytes, t_DdrWidth = 64/sizeof(t_FloatType). | configured by GEMX_ddrWidth.<br> default value is 32.
+unsigned int t_DdrWidth | number of B or C elements in a memory word retrieved from one DDR access.<br> given DDR memory word is 64 bytes, t_DdrWidth = 64/sizeof(t_FloatType). | configured by GEMX_ddrWidth.<br> default value is 32.
 unsigned int t_NnzWords | number DDR bursts, with each burst retrieve t_DdrWidth matrix values. | configured by GEMX_nnzBlocks.<br> default value is 8.
 unsigned int t_kVectorBlocks | max length of the B vector. | configured by GEMX_spmvKmaxBlocks.<br> default value is 32768.
 unsigned int t_mVectorBlocks | max length of the C vector. | configured by GEMX_spmvMmaxBlocks.<br> default value is 5462 
@@ -247,12 +247,12 @@ runSpmv | *DdrWideType \*p_DdrRd*: memory pointer used to read A, B and C  from 
 * Features
   * supported sparse matrix format
     * coordinate format
-  * minimum matrix size
-    * row (M) : (t_UramGroups*number_of_t_FloatType_values_per_UramUnit) x (t_DdrWidth / number_of_t_FloatType_values_per_UramUnit)
-    * nnz : t_NnzWords * (t_DdrWidth / number_of_t_FloatType_values_per_UramUnit)
+  * matrix size
+    * row (M) : multiple of (t_UramGroups*number_of_t_FloatType_values_per_UramUnit) x (t_DdrWidth / number_of_t_FloatType_values_per_UramUnit)
+    * nnz : multiple of t_NnzWords * (t_DdrWidth / number_of_t_FloatType_values_per_UramUnit)
   * value type for matrix and vector element
-    * 16-bit integer
     * fp32
+    * 16/32-bit integer
 
 ## 3. BUILDING FPGA IMAGES WITH GEMX ENGINES
 The Makefile under the gemx/ directory allows users to configure the template parameters of GEMX engine classes. It also provides the flexibility for building a multi-kernel FPGA image. As shown in the figure below, each kernel has a dedicated DDR bank and contains one or multiple GEMX engines.
