@@ -9,8 +9,8 @@ void MakeSPMVHost(char *xclbin, char* device, unsigned int nPE);
 void SendToFPGAShrt(short *A,  unsigned long long num_elem, unsigned PE, bool sync_send);
 void SendToFPGAInt(int *A,  unsigned long long num_elem, unsigned PE, bool sync_send);
 void SendToFPGAFloat(float *A,  unsigned long long num_elem, unsigned PE, bool sync_send);
-void* SendSpToFpgaFloat(int *row, int *col, float *data, unsigned int nnz, unsigned PE);
-void* SendSpToFpgaInt(int *row, int *col, float *data, unsigned int nnz, unsigned PE);
+void* SendSpToFpgaFloat(int *row, int *col, float *data, unsigned int nnz, unsigned int ddr_width, unsigned PE);
+void* SendSpToFpgaInt(int *row, int *col, float *data, unsigned int nnz, unsigned int ddr_width, unsigned PE);
 //void SendToFPGAShrt_dbg( char * name, short *A, int m, int n, bool sync_send);
 //void SendToFPGAInt_dbg( char * name, int *A, int m, int n, bool sync_send);
 

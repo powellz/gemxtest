@@ -120,15 +120,25 @@ void SendToFPGAFloat(float *A, unsigned long long num_elem, unsigned PE,bool syn
 
 }
 
-void* SendSpToFpgaFloat(int *row, int *col, float *data, unsigned int nnz, unsigned PE){
+void* SendSpToFpgaFloat(int *row, int *col, float *data, unsigned int nnz, unsigned int ddr_width, unsigned PE){
+    gemx::XTimer t;
     gemx::SPMVHost<void*>* spmv_ptr = static_cast< gemx::SPMVHost<void*> *> (GEMXHostHandle<void*>::Instance().gh_ptr[PE].get());
-    void* ret = spmv_ptr->SendSpToFpgaFloat(row,col,data,nnz);
+    void* ret = spmv_ptr->SendSpToFpgaFloat(row,col,data,nnz,ddr_width);
+#ifdef GEMX_PERF_DBG
+    GEMXHostProfiler::Instance().func_time["SendSpToFpgaFloat"] += t.elapsed();
+    GEMXHostProfiler::Instance().func_calls["SendSpToFpgaFloat"]++;
+#endif
     return ret;
 }
 
-void* SendSpToFpgaInt(int *row, int *col, float *data, unsigned int nnz, unsigned PE){
+void* SendSpToFpgaInt(int *row, int *col, float *data, unsigned int nnz, unsigned int ddr_width, unsigned PE){
+    gemx::XTimer t;
     gemx::SPMVHost<void*>* spmv_ptr = static_cast< gemx::SPMVHost<void*> *> (GEMXHostHandle<void*>::Instance().gh_ptr[PE].get());
-    void* ret = spmv_ptr->SendSpToFpgaInt(row,col,data,nnz);
+    void* ret = spmv_ptr->SendSpToFpgaInt(row,col,data,nnz,ddr_width);
+#ifdef GEMX_PERF_DBG
+    GEMXHostProfiler::Instance().func_time["SendSpToFpgaInt"] += t.elapsed();
+    GEMXHostProfiler::Instance().func_calls["SendSpToFpgaInt"]++;
+#endif
     return ret;
 }
 

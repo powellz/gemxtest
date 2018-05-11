@@ -32,10 +32,10 @@ class GEMXManager:
                                    c_uint, c_uint, c_uint, c_uint]                                                                 
     self._lib.SendSpToFpgaFloat.argtypes = [np.ctypeslib.ndpointer(c_int, flags="C_CONTIGUOUS"),
                                        np.ctypeslib.ndpointer(c_int, flags="C_CONTIGUOUS"),
-                                       np.ctypeslib.ndpointer(c_float, flags="C_CONTIGUOUS"),c_uint,c_uint]
+                                       np.ctypeslib.ndpointer(c_float, flags="C_CONTIGUOUS"),c_uint,c_uint,c_uint]
     self._lib.SendSpToFpgaInt.argtypes = [np.ctypeslib.ndpointer(c_int, flags="C_CONTIGUOUS"),
                                        np.ctypeslib.ndpointer(c_int, flags="C_CONTIGUOUS"),
-                                       np.ctypeslib.ndpointer(c_float, flags="C_CONTIGUOUS"),c_uint,c_uint]
+                                       np.ctypeslib.ndpointer(c_float, flags="C_CONTIGUOUS"),c_uint,c_uint,c_uint]
     self._lib.SendSpToFpgaFloat.restype = c_void_p
     self._lib.SendSpToFpgaInt.restype = c_void_p  
     self._lib.AddFCNOp.restype = c_bool
@@ -95,11 +95,11 @@ class GEMXManager:
     else:
         raise TypeError("type", A, "not supported")
       
-  def sendSpMat(self,row,col,data,nnz,dtype,PE):
+  def sendSpMat(self,row,col,data,ddrWidth,dtype,PE):
      if dtype == np.int32:
-        return self._lib.SendSpToFpgaInt(row,col,data,nnz,c_uint(PE))   
+        return self._lib.SendSpToFpgaInt(row,col,data,row.shape[0],ddrWidth,c_uint(PE))   
      elif dtype == np.float32:     
-        return self._lib.SendSpToFpgaFloat(row,col,data,nnz,c_uint(PE))
+        return self._lib.SendSpToFpgaFloat(row,col,data,row.shape[0],ddrWidth,c_uint(PE))
      else:
         raise TypeError("type", A, "not supported") 
           
@@ -124,8 +124,8 @@ _gemxManager = None
 def sendMat ( A,PE=0,sync_send=False):
     _gemxManager.sendMat(A,PE,sync_send)
     
-def sendSpMat (row,col,data,nnz,dtype,PE=0):
-    return _gemxManager.sendSpMat(row,col,data,nnz,dtype,PE)
+def sendSpMat (row,col,data,ddrWidth,dtype,PE=0):
+    return _gemxManager.sendSpMat(row,col,data,ddrWidth,dtype,PE)
 
 def getMat (A, PE=0, sync_get = True):
     return _gemxManager.getMat(A, PE,sync_get)

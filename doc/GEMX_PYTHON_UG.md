@@ -130,7 +130,7 @@ gemx.py | addSPMVOp | *A, B, C*: pointers point to matrices <br> *nnz*: number o
 gemx.py | execute | *PE*: number of kernels | start kernels
 gemx.py | wait | *PE*: number of kernels |
 gemx.py | sendMat | *A*: pointer points to matrix that sends to kernel <br> *PE*: number of kernels | send matrix to kernel
-gemx.py | sendSpMat | *row,col,data*: pointers point to row, col and data array of input sparse matrix <br> *nnz*: number of non-zero elements in the sparse matrix <br> *dtype*: matrix type <br> *PE*: number of kernels | send sparse matrix to kernel
+gemx.py | sendSpMat | *row,col,data*: pointers point to row, col and data array of input sparse matrix <br> *ddrWidth*: width of DDR <br> *dtype*: matrix type <br> *PE*: number of kernels | send sparse matrix to kernel
 gemx.py | getMat | *A*: pointer points to matrix <br> *PE*: number of kernels | get result back from kernel
 gemx.py | printStats |  | print time taken by functions in c++ side
 gemx.py | getFreq |  | return frequency of the given image
@@ -164,9 +164,9 @@ test_fcn.py | test_multiInstrv1 | *int_range*: range of random generated matrice
 test_fcn.py | test_perf_fcn | *A_range, B_range, bias_range*: range of random generated matrices <br> *m, k, n*: matrices size <br> *post_scale*: [postScaleVal, postScaleShift] | test FCN and print kernel performance 
 test_fcn.py | test_perf_multi_fcn | *ins_count*: number of instructions <br> *m_size, k_size, n_size*: matrices size <br> *A_range, B_range*: range of random generated matrices <br> *post_scale*: [postScaleVal, postScaleShift] | test multi FCN instructions and print kernel performance
 test_gemm.py | test_multiInstrv1 | *int_range*: range of random generated matrices <br> *m, k, n*: matrices size <br> *add_bias*: check add bias or not | send multi and consecutive instructions to test GEMM
-test_spmv.py | common_spmv | *row,col,data*: pointers point to row, col and data array of input sparse matrix <br> *nnz*: number of non-zero elements in the sparse matrix <br> *vector_range*: range of random generated vector <br> *dtype*: matrix type | take input matrices, send matrices and SPMV operations to kernel, execute it and then get the results back
-test_spmv.py | test_spmv_mtxfile | *mtxpath*: path to the mtx file for sparse matrix <br> *vector_range*: range of random generated vector <br> *dtype*: matrix type | create inputs for SPMV by given sparse matirx and random vector
-test_spmv.py | test_spmv | *m,k*: matrix size <br> *nnz*: number of non-zero elements in the sparse matrix <br> *vector_range*: range of random generated vector <br> *dtype*: matrix type | create inputs for SPMV by random sparse matirx and vector
+test_spmv.py | common_spmv | *row,col,data*: pointers point to row, col and data array of input sparse matrix <br> *nnz*: number of non-zero elements in the sparse matrix <br> *vector_range*: range of random generated vector | takes input matrices, send matrices and SPMV operations to kernel, execute it and then get the results back
+test_spmv.py | test_spmv_mtxfile | *mtxpath*: path to the mtx file for sparse matrix <br> *vector_range*: range of random generated vector | create inputs for SPMV by given sparse matirx and random vector
+test_spmv.py | test_spmv | *m,k*: matrix size <br> *nnz*: number of non-zero elements in the sparse matrix <br> *vector_range*: range of random generated vector | create inputs for SPMV by random sparse matirx and vector
 
 ## 5. SUPPORT
 For more information about SDAccel check the [SDAccel User Guides][]

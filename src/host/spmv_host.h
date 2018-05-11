@@ -11,36 +11,33 @@ namespace gemx {
 template < typename Tdata,  typename Tidx>
 class SpMatUram
 {
-  // 16 = ddrwidth
   private:
     unsigned int m_Nnz;
     Tdata *m_DataAddr;
     Tidx  *m_IdxAddr;
-  public:
-     static const unsigned int t_NumData = (sizeof(Tidx)/sizeof(Tdata)) * 2 * 16 + 16;
-     static const unsigned int t_NumIdx = (sizeof(Tidx)*2/sizeof(Tdata)+1)*sizeof(Tdata)*16 / sizeof(Tidx);
+    unsigned int t_NumData;
+    unsigned int t_NumIdx;
+    unsigned int m_ddrWidth;
   public:
     SpMatUram(){}
-    SpMatUram(unsigned int p_Nnz, Tdata *p_DataAddr)
-      : m_Nnz(p_Nnz), m_DataAddr(p_DataAddr), m_IdxAddr((Tidx*)(p_DataAddr+16)) {
+    SpMatUram(unsigned int p_Nnz, Tdata *p_DataAddr, unsigned int ddr_width)
+      : m_Nnz(p_Nnz), m_DataAddr(p_DataAddr), m_IdxAddr((Tidx*)(p_DataAddr+ddr_width)), m_ddrWidth(ddr_width) {
+      t_NumData = (sizeof(Tidx)/sizeof(Tdata)) * 2 * ddr_width + ddr_width;
+      t_NumIdx = (sizeof(Tidx)*2/sizeof(Tdata)+1)*sizeof(Tdata)*ddr_width / sizeof(Tidx);
     }
-    inline Tdata &getVal(unsigned int p_id) {return m_DataAddr[(p_id/16)*t_NumData+(p_id%16)];}
-    inline Tidx &getCol(unsigned int p_id) {return m_IdxAddr[(p_id/16)*t_NumIdx+(p_id%16)*2];}
-    inline Tidx &getRow(unsigned int p_id) {return m_IdxAddr[(p_id/16)*t_NumIdx+(p_id%16)*2+1];}
-    void 
-    init(unsigned int p_Nnz, Tdata *p_DataAddr){
-            m_Nnz = p_Nnz;
-            m_DataAddr = p_DataAddr;
-            m_IdxAddr = (Tidx*) (p_DataAddr+16);
-    }    
+    inline Tdata &getVal(unsigned int p_id) {return m_DataAddr[(p_id/m_ddrWidth)*t_NumData+(p_id%m_ddrWidth)];}
+    inline Tidx &getCol(unsigned int p_id) {return m_IdxAddr[(p_id/m_ddrWidth)*t_NumIdx+(p_id%m_ddrWidth)*2];}
+    inline Tidx &getRow(unsigned int p_id) {return m_IdxAddr[(p_id/m_ddrWidth)*t_NumIdx+(p_id%m_ddrWidth)*2+1];}
+    
     void
-    fillFromVector(int* row, int* col, float* data) {
+    fillFromVector(int* row, int* col, float* data) { 
       for (unsigned int i = 0; i < m_Nnz; ++i) {
         getVal(i) = data[i];
         getCol(i) = col[i];
-        getRow(i) = row[i];        
+        getRow(i) = row[i]; 
       }
     }
+    
 };
   
 class SpmvArgs: public kArgs {
@@ -89,19 +86,19 @@ public:
         return false;
     } 
     
-    virtual void* SendSpToFpgaFloat(int * row, int * col, float * data, unsigned int nnz){
-       float *A =new float[nnz*3];
-       SpMatUram<float,int> MatA(nnz,A);
+    virtual void* SendSpToFpgaFloat(int * row, int * col, float * data, unsigned int nnz, unsigned int ddr_width){
+       float *A = new float[nnz+nnz*2*sizeof(int)/sizeof(float)];
+       SpMatUram<float,int> MatA(nnz,A,ddr_width);
        MatA.fillFromVector(row,col,data);
-       this->SendToFPGA((float*)A, A,(unsigned long long)(nnz*3)*sizeof(float)); 
+       this->SendToFPGA((float*)A, A,(unsigned long long)(nnz+nnz*2*sizeof(int)/sizeof(float))*sizeof(float)); 
        return A;
     }
     
-    virtual void* SendSpToFpgaInt(int * row, int * col, float * data, unsigned int nnz){
-       int *A =new int[nnz*3];
-       SpMatUram<int,int> MatA(nnz,A);
+    virtual void* SendSpToFpgaInt(int * row, int * col, float * data, unsigned int nnz,unsigned int ddr_width){
+       int *A =new int[nnz+nnz*2*sizeof(int)/sizeof(int)];
+       SpMatUram<int,int> MatA(nnz,A,ddr_width);
        MatA.fillFromVector(row,col,data);
-       this->SendToFPGA((float*)A, A,(unsigned long long)(nnz*3)*sizeof(int));     
+       this->SendToFPGA((float*)A, A,(unsigned long long)(nnz+nnz*2*sizeof(int)/sizeof(int))*sizeof(int));     
        return A;
     }
     
