@@ -281,21 +281,22 @@ GEMX_BIN_PROGRAM | a string of instructions that are executed on the kernel.<br>
 ### 3.1 EXAMPLE USAGES
 
 * building a single kernel FPGA image
+
   * building a kernel that includes one GEMM engine on ku115 platform
-  
   ```
-make run_hw GEMX_ddrWidth=32 GEMX_XddrWidth=16 GEMX_keepMacBits=1 GEMX_argInstrWidth=1 GEMX_numKernels=1 GEMX_runGemv=0 GEMX_runGemm=1 GEMX_runTransp=0 GEMX_runSpmv=0 GEMX_gemmMBlocks=4 GEMX_gemmKBlocks=4 GEMX_gemmNBlocks=4 GEMX_splitMesh=1 GEMX_part=ku115 GEN_BIN_PROGRAM="gemm 512 512 512  512 512 512 512 1 0 A05 B05 C05 X05  gemm 1024 1024 1024  1024 1024 1024 1024 1 0 A1k B1k C1k X1K   gemm 1024 1024 1024  1536 2048 2560 1024 1 0 A1kld B1kld C1kld X1kld"
+
+	make run_hw GEMX_ddrWidth=32 GEMX_XddrWidth=16 GEMX_keepMacBits=1 GEMX_argInstrWidth=1 GEMX_numKernels=1 GEMX_runGemv=0 GEMX_runGemm=1 GEMX_runTransp=0 GEMX_runSpmv=0 GEMX_gemmMBlocks=4 GEMX_gemmKBlocks=4 GEMX_gemmNBlocks=4 GEMX_splitMesh=1 GEMX_part=ku115 GEN_BIN_PROGRAM="gemm 512 512 512  512 512 512 512 1 0 A05 B05 C05 X05  gemm 1024 1024 1024  1024 1024 1024 1024 1 0 A1k B1k C1k X1K   gemm 1024 1024 1024  1536 2048 2560 1024 1 0 A1kld B1kld C1kld X1kld"
   where
      * "run_hw" can be changed to "run_cpu_em" or "run_hw_em" to run the design in SDAccel cpu or hw emulation mode. When the design is running at the hw emulation mode, user can use HWEMUGUI=1 to lunch the Vivado GUI and check the waveforms of the signals. 
      * for fast cpu emulation to check the correctness of the design, user can set GEMX_ddrWidth to small numbers, e.g. 4. 
      * the instruction string defined in the GEN_BIN_PROGRAM is compiled and transmitted to the kernel via the device memory. 
      * a Vivado HLS project can also be created from the cpu emulation results. Please refer to the run-hls.tcl to find steps of doing so.
   ``` 
-  
+ 
   * building a kernel that includes one GEMM engine, one GEMV engine and one TRANSPOSER engine on vu9pf1 platform
  
  ```
-  make run_hw SDA_FLOW=hw  GEMX_numKernels=1 GEMX_runGemv=1 GEMX_runGemm=1 GEMX_runTransp=1 GEMX_runSpmv=0 GEMX_splitMesh=1 GEMX_part=vu9pf1
+ make run_hw SDA_FLOW=hw  GEMX_numKernels=1 GEMX_runGemv=1 GEMX_runGemm=1 GEMX_runTransp=1 GEMX_runSpmv=0 GEMX_splitMesh=1 GEMX_part=vu9pf1
  ```
  
 * building multi-kernel FPGA image
