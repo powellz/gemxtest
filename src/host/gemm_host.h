@@ -50,7 +50,6 @@ public:
     static vector<unsigned> getDDRBankFlags(const string & device)
     {
         vector<unsigned>ddrBanks;
-        unsigned ddr_flags;
         if ( device == "ku115" || device == "kcu1500" ){
             ddrBanks = {XCL_MEM_DDR_BANK0, XCL_MEM_DDR_BANK1, XCL_MEM_DDR_BANK2, XCL_MEM_DDR_BANK3};
         }
