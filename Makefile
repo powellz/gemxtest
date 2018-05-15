@@ -16,6 +16,12 @@ DSA_PATH=${XILINX_SDX}/platforms
 GCC_PATH=${XILINX_VIVADO}/tps/lnx64
 BOOST_SRC=${PWD}/../boost/src
 BOOST_LIB=${PWD}/../boost/lib
+
+ifeq ("$(wildcard $(BOOST_SRC))","")
+  BOOST_SRC=${PWD}/boost/src
+  BOOST_LIB=${PWD}/boost/lib
+endif
+
 export BOOST_COMPUTE_DEFAULT_VENDOR=Xilinx
 
 
