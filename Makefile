@@ -244,7 +244,13 @@ XP_VIVADO_PARAMS+=--xp param:compiler.fanoutLimit=0
 #CLCC_OPT: CLCC options for both compile and link
 #CLCC_COMP_OPT: CLCC options only for compile mode
 #CLCC_LINK_OPT: CLCC options only for link mode
-CLCC_OPT += -t ${SDA_FLOW}
+
+ifeq (${SDA_FLOW},cpu_emu)
+	CLCC_OPT += -t sw_emu
+else
+	CLCC_OPT += -t ${SDA_FLOW}
+endif
+
 ifeq (${SDA_FLOW},hw_emu)
     ifeq ($(HWEMUGUI),1)
         CLCC_OPT += --xp param:hw_em.debugLevel=GUI
@@ -340,7 +346,7 @@ endif
 SHELL = /bin/bash
 VPATH = ${PWD}
 
-#supported flow: sw_emu, hw_emu, hw
+#supported flow: cpu_emu, hw_emu, hw
 CC = ${GCC_PATH}/gcc-${GCC_VERSION}/bin/g++
 CLCC = $(XILINX_SDX)/bin/xocc
 
@@ -437,19 +443,19 @@ spmv_perf: ${API_SPMV_EXE}
 	+make SDA_FLOW=hw run_hw_int  2>&1 | tee log-run_hw.txt; test -f ${MAKE_EXIT_OK_HW_FILE}
 
 gemx_func_test: host
-	+make SDA_FLOW=sw_emu run_em_int  2>&1 | tee log-run_cpu_em.txt
+	+make SDA_FLOW=cpu_emu run_em_int  2>&1 | tee log-run_cpu_emu.txt
 
 gemm_test_python: ${GEMX_HOST_LIB}
 	+make SDA_FLOW=hw run_hw_int  2>&1 | tee log-run_hw.txt; test -f ${MAKE_EXIT_OK_HW_FILE}
 
 run_cpu_em: host
-	+make SDA_FLOW=sw_emu run_em_int  2>&1 | tee log-run_cpu_em.txt
+	+make SDA_FLOW=cpu_emu run_em_int  2>&1 | tee log-run_cpu_emu.txt
 
 run_hw_em: host
-	+make SDA_FLOW=hw_emu run_em_int  2>&1 | tee log-run_hw_em.txt
+	+make SDA_FLOW=hw_emu run_em_int  2>&1 | tee log-run_hw_emu.txt
 
 run_apiGemm_cpu_em: api_gemm 
-	+make SDA_FLOW=sw_emu run_apiGemm_em_int  2>&1 | tee log-run_apiGemm_cpu_em.txt
+	+make SDA_FLOW=cpu_emu run_apiGemm_em_int  2>&1 | tee log-run_apiGemm_cpu_em.txt
 
 run_apiGemm_hw_em: api_gemm 
 	+make SDA_FLOW=hw_emu run_apiGemm_em_int  2>&1 | tee log-run_apiGemm_hw_em.txt
@@ -548,7 +554,7 @@ xbinst_hw:  host
 	$(DSA_PATH)/../bin/xbinst --platform_repo_paths=${PLATFORM_REPO_PATH} --platform $(XDEVICE) -d ${OUT_DIR}
 
 clean :
-	+make SDA_FLOW=sw_emu clean_int
+	+make SDA_FLOW=cpu_emu clean_int
 	+make SDA_FLOW=hw_emu clean_int
 	+make SDA_FLOW=hw clean_int
 	${RM} -rf ${OUT_HOST_DIR} sdaccel_profile* .Xil _sds iprepo bd.* *.bit *.ltx *.dat *.hpfm *.xml _new_clk_freq dr.bd.tcl
