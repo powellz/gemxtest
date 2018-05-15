@@ -1,1 +1,0 @@
-../board_lsf.sh
