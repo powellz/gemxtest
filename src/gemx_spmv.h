@@ -96,14 +96,6 @@ class Spmv
     static const unsigned int t_Debug = 0;
 
   private:
-    SpmvAdesc getDesc(unsigned int p_Cblock) {return m_Desc[p_Cblock];}
-    t_FloatType &
-    getCref(unsigned int p_Bank, unsigned int p_Group, unsigned int p_Offset) {
-        assert(p_Bank < t_SpmvWidth);
-        assert(p_Group < t_MacGroups);
-        assert(p_Offset < t_mVectorBlocks * t_DdrWidth);
-        return m_C[p_Bank][p_Group][p_Offset];
-      }
     
     t_FloatEqIntType
     float2bits(t_FloatType p_Val) {
@@ -121,28 +113,6 @@ class Spmv
     // Loops  B 3624  C 604  A 36870
     // Total SDx board cycle time should be 3800*3+37000 = 48400
     
-    void
-    loadD(DdrWideType *p_dAddr, unsigned int p_numWordsD) {
-        // Load descriptor array for C blocks into BRAM
-        WideConv<DdrWideType, SpmvWideDType> l_conv;
-        DREAD:for(int l_idxD = 0; l_idxD < p_numWordsD; ++l_idxD) {
-          #pragma HLS LOOP_TRIPCOUNT min=1 max=32
-          #pragma HLS PIPELINE
-          DdrWideType l_valDdr = p_dAddr[l_idxD];
-          SpmvWideDType l_wideDesc = l_conv.convert(l_valDdr);
-          assert(sizeof(t_FloatType) * t_DdrWidth == sizeof(SpmvAdesc) * t_numDescPerDdr); 
-          D_DDR_W:for(unsigned int w = 0; w < t_numDescPerDdr; ++w) {
-            SpmvAdesc l_desc = l_wideDesc[w];
-            unsigned int l_descIdx = w + t_numDescPerDdr * l_idxD;
-            assert(l_descIdx < t_NumCblocks);   // If this fails then ncrease  GEMX_spmvNumCblocks
-            m_Desc[l_descIdx] = l_desc;
-            #pragma HLS array_partition variable=m_Desc CYCLIC factor=t_numDescPerDdr
-            t_Debug && std::cout << "DEBUG: loadD " << " read m_Desc[" << l_descIdx << "] = " << l_desc
-                                 << "\n";
-          }
-        }
-      }
-
     void
     loadB(DdrWideType *p_bAddr, unsigned int p_kBlocks) {
         // Load entire B into BRAM
@@ -743,7 +713,89 @@ class Spmv
       }
 
 
+  public:
+    
+		SpmvAdesc getDesc(unsigned int p_Cblock) {return m_Desc[p_Cblock];}
+    t_FloatType &
+    getCref(unsigned int p_Bank, unsigned int p_Group, unsigned int p_Offset) {
+        assert(p_Bank < t_SpmvWidth);
+        assert(p_Group < t_MacGroups);
+        assert(p_Offset < t_mVectorBlocks * t_DdrWidth);
+        return m_C[p_Bank][p_Group][p_Offset];
+    }
+
+		void
+    loadB2Stream(DdrWideType *p_bAddr, DdrWideStreamType &p_outS, unsigned int p_kBlocks) {
+			// Load entire B into BRAM
+			assert(t_NumDdrPerSpmv * t_SpmvWidth == t_DdrWidth);
+			LOOP_SPMV_BLOAD:for(unsigned int l_kBlock = 0; l_kBlock < p_kBlocks; ++l_kBlock) {
+				#pragma HLS LOOP_TRIPCOUNT min=1 max=3624
+				#pragma HLS pipeline
+				DdrWideType l_val = p_bAddr[l_kBlock];
+				p_outS.write(l_val);
+			}
+    }
+
+    void storeBFromStream(DdrWideStreamType &p_inS, unsigned int p_kBlocks) {
+			LOOP_SPMV_BSTORE:for(unsigned int l_kBlock = 0; l_kBlock < p_kBlocks; ++l_kBlock) {
+				#pragma HLS LOOP_TRIPCOUNT min=1 max=3624
+				#pragma HLS pipeline
+				DdrWideType l_val;
+				p_inS.read(l_val);
+				LOOP_D:for(int d = 0; d < t_NumDdrPerSpmv; ++d) {
+					LOOP_W:for(int w = 0; w < t_SpmvWidth; ++w) {
+						unsigned int l_bank = w;
+						unsigned int l_offset = d + t_NumDdrPerSpmv * l_kBlock;
+						m_B[l_bank][l_offset] = l_val[w + d * t_SpmvWidth];
+					}
+				}
+			}
+		}
+    
     void
+    loadD(DdrWideType *p_dAddr, unsigned int p_numWordsD) {
+        // Load descriptor array for C blocks into BRAM
+        WideConv<DdrWideType, SpmvWideDType> l_conv;
+        DREAD:for(int l_idxD = 0; l_idxD < p_numWordsD; ++l_idxD) {
+          #pragma HLS LOOP_TRIPCOUNT min=1 max=32
+          #pragma HLS PIPELINE
+          DdrWideType l_valDdr = p_dAddr[l_idxD];
+          SpmvWideDType l_wideDesc = l_conv.convert(l_valDdr);
+          assert(sizeof(t_FloatType) * t_DdrWidth == sizeof(SpmvAdesc) * t_numDescPerDdr); 
+          D_DDR_W:for(unsigned int w = 0; w < t_numDescPerDdr; ++w) {
+            SpmvAdesc l_desc = l_wideDesc[w];
+            unsigned int l_descIdx = w + t_numDescPerDdr * l_idxD;
+            assert(l_descIdx < t_NumCblocks);   // If this fails then ncrease  GEMX_spmvNumCblocks
+            m_Desc[l_descIdx] = l_desc;
+            #pragma HLS array_partition variable=m_Desc CYCLIC factor=t_numDescPerDdr
+            t_Debug && std::cout << "DEBUG: loadD " << " read m_Desc[" << l_descIdx << "] = " << l_desc
+                                 << "\n";
+          }
+        }
+      }
+
+    void
+    initC(unsigned int p_mgdBlocks) {
+			// Lengths in DDR words and groups respectively to store 1 lcm block
+			const unsigned int t_NumFloats = t_SpmvWidth * t_MacGroups;
+			const unsigned int t_ddrL = t_NumFloats / t_DdrWidth;
+			assert(t_ddrL * t_DdrWidth == t_NumFloats);  
+			
+			LOOP_LOAD_MGD_BLOCKS:for(unsigned int l_mgdBlock = 0; l_mgdBlock < p_mgdBlocks; ++l_mgdBlock) {
+				#pragma HLS LOOP_TRIPCOUNT min=1 max=604
+				#pragma HLS pipeline
+
+				LOOP_S:for(int l_s = 0; l_s < t_NumFloats; ++l_s) {
+					#pragma HLS UNROLL
+					unsigned int l_bank = l_s % t_SpmvWidth;
+					unsigned int l_group = (l_s / t_SpmvWidth) % t_MacGroups;
+					unsigned int l_offset = l_mgdBlock;
+					getCref(l_bank, l_group, l_offset) = 0;
+				}
+			}
+    }
+
+		void
     multA(DdrWideType *p_aAddr, unsigned int p_numWordsA) {
       //#pragma HLS inline self off
       
@@ -842,9 +894,59 @@ class Spmv
 
     }
 
+    void
+    storeCandStreaming(DdrWideType *p_cAddr, DdrWideStreamType &p_outS, unsigned int p_mgdBlocks) {
+        
+        // Lengths in DDR words and groups respectively to store 1 lcm block
+        const unsigned int t_NumFloats = t_SpmvWidth * t_MacGroups;
+        const unsigned int t_ddrL = t_NumFloats / t_DdrWidth;
+        assert(t_ddrL * t_DdrWidth == t_NumFloats);  
+        
+        unsigned int l_addIdx = 0;
+        LOOP_LOAD_MGD_BLOCKS:for(unsigned int l_mgdBlock = 0; l_mgdBlock < p_mgdBlocks; ++l_mgdBlock) {
+          #pragma HLS LOOP_TRIPCOUNT min=1 max=604
+          #pragma HLS pipeline
 
-  public:
-    
+          // Get groups
+          t_FloatType l_spmvVal[t_NumFloats];
+          LOOP_S:for(int l_s = 0; l_s < t_NumFloats; ++l_s) {
+            #pragma HLS UNROLL
+            unsigned int l_bank = l_s % t_SpmvWidth;
+            unsigned int l_group = (l_s / t_SpmvWidth) % t_MacGroups;
+            unsigned int l_offset = l_mgdBlock;
+            l_spmvVal[l_s] = getCref(l_bank, l_group, l_offset);
+            t_Debug && std::cout << "DEBUG: loadC loaded "
+                                 << " bank " << l_bank
+                                 << " group " << l_group
+                                 << " offset " << l_offset
+                                 << " with value " << l_spmvVal[l_s]
+                                 << "\n";
+          }
+
+          // Reshape
+          DdrWideType l_valDdr[t_ddrL];
+          LOOP_DL:for(int l_di = 0; l_di < t_ddrL; ++l_di) {
+            #pragma HLS UNROLL
+            LOOP_D:for(int d = 0; d < t_DdrWidth; ++d) {
+              #pragma HLS UNROLL
+              unsigned int l_ddrIdx = l_di * t_DdrWidth + d;
+              assert(l_ddrIdx < t_NumFloats);
+              l_valDdr[l_di][d] = l_spmvVal[l_ddrIdx];
+            }
+          }
+          
+          // Write
+          LOOP_W:for(int l_di = 0; l_di < t_ddrL; ++l_di) { 
+            p_cAddr[l_addIdx] = l_valDdr[l_di];
+						p_outS.write(l_valDdr[l_di]);
+            t_Debug && std::cout << "DEBUG: loadC read DdrWord " << l_valDdr[l_di]
+                                 << " at Cindex " << l_addIdx  << "\n";
+            l_addIdx++;
+          }
+          
+        }
+      }
+
     void runSpmv(
         DdrWideType *p_DdrRd,
         DdrWideType *p_DdrWr,
