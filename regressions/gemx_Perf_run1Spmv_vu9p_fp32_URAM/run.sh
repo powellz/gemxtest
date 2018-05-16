@@ -16,7 +16,7 @@ source $XILINX_SDX/settings64.sh
 env
 which xocc vivado_hls vivado
 
-make api_python
+make out_host/lib/libgemxhost.so
 
 make out_host/gemx_api_spmv.exe GEMX_ddrWidth=16 GEMX_argInstrWidth=1 GEMX_numKernels=1 GEMX_runGemv=0 GEMX_runGemm=0 GEMX_runTransp=0 GEMX_runSpmv=1 GEMX_dataType=int32_t GEMX_dataEqIntType=int32_t GEMX_idxType=int32_t GEMX_nnzBlocks=1 GEMX_useURAM=1 GEMX_part=vcu1525
 
