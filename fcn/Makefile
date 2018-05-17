@@ -6,7 +6,7 @@
 ########
 
 GCC_VERSION=6.2.0
-
+# 
 HWEMUGUI = 0
 
 #DSA_PATH=/proj/xbuilds/2017.2_sdx_released/installs/lin64/SDx/2017.2/platforms
@@ -453,6 +453,11 @@ ${APP_GOLD_TXT} : ${GEN_BIN_EXE}
 	${GEN_BIN_EXE} -write ${APP_BIN} ${GEN_BIN_PROGRAM}
 	${GEN_BIN_EXE} -read ${APP_BIN} > ${APP_TXT}
 	${GEN_BIN_EXE} -read ${APP_GOLD_BIN} > ${APP_GOLD_TXT}
+	
+${API_FCN_MULTI_INSTR_EXE} : ./src/* | ${OUT_HOST_DIR}
+	@echo "***** Compile testcase generator executable *****"
+	@echo ${CC} ${HOST_CFLAGS} ${HOST_LFLAGS}
+	${CC} ${HOST_CFLAGS} ${HOST_LFLAGS} src/gemx_api_fcn_multiInstr.cpp -o $@
 
 xconfig : ${OUT_HOST_DIR}/emconfig.json | ${OUT_HOST_DIR}
 

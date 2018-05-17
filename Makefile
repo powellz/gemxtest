@@ -534,6 +534,11 @@ ${API_SPMV_EXE} : ./src/* | ${OUT_HOST_DIR}
 	@echo ${CC} ${HOST_CFLAGS} ${HOST_LFLAGS}
 	${CC} ${HOST_CFLAGS} ${HOST_LFLAGS} src/gemx_api_spmv.cpp -o $@
 
+${API_GEMM_MULTI_INSTR_EXE} : ./src/* | ${OUT_HOST_DIR}
+	@echo "***** Compile testcase generator executable *****"
+	@echo ${CC} ${HOST_CFLAGS} ${HOST_LFLAGS}
+	${CC} ${HOST_CFLAGS} ${HOST_LFLAGS} src/gemx_api_gemm_multiInstr.cpp -o $@
+
 ${APP_GOLD_TXT} : ${GEN_BIN_EXE} 
 	${GEN_BIN_EXE} -write ${APP_BIN} ${GEN_BIN_PROGRAM}
 	${GEN_BIN_EXE} -read ${APP_BIN} > ${APP_TXT}
