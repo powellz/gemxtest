@@ -12,6 +12,6 @@ tasks:
     cpu_cores: 1
     level: 3
     memory: 5
-    select_resource: dsa_cfg='xilinx:xil-accel-rd-ku115:dynamic:5_0'
-user: {dsa: 'xilinx:xil-accel-rd-ku115:dynamic:5_0', name: gemx_Perf_MultiInstr_run1Gemm_ku115_short, design: gemx_Perf_MultiInstr_run1Gemm_ku115_short, test_name: gemx_Perf_MultiInstr_run1Gemm_ku115_short, board_check: 1, board_recover: 0 }
+    select_resource: dsa_cfg='xilinx:kcu1500:dynamic:5_0'
+user: {dsa: 'xilinx:kcu1500:dynamic:5_0', name: gemx_Perf_MultiInstr_run1Gemm_ku115_short, design: gemx_Perf_MultiInstr_run1Gemm_ku115_short, test_name: gemx_Perf_MultiInstr_run1Gemm_ku115_short, board_check: 1, board_recover: 0 }
 
