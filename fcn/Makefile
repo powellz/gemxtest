@@ -14,6 +14,13 @@ DSA_PATH=${XILINX_SDX}/platforms
 GCC_PATH=${XILINX_VIVADO}/tps/lnx64
 BOOST_SRC=${PWD}/../../boost/src
 BOOST_LIB=${PWD}/../../boost/lib
+
+ifeq ("$(wildcard $(BOOST_SRC))","")
+  BOOST_SRC=${PWD}/../boost/src
+  BOOST_LIB=${PWD}/../boost/lib
+endif
+
+
 export BOOST_COMPUTE_DEFAULT_VENDOR=Xilinx
 
 
@@ -368,7 +375,7 @@ XCLBIN = ${OUT_DIR}/gemx.xclbin
 OUT_HOST_DIR = out_host
 HOST_EXE = ${OUT_HOST_DIR}/gemx_host.exe
 GEN_BIN_EXE = ${OUT_HOST_DIR}/gemx_gen_bin.exe
-API_GEMM_EXE = ${OUT_HOST_DIR}/gemx_api_gemm.exe
+API_FCN_MULTI_INSTR_EXE = ${OUT_HOST_DIR}/gemx_api_fcn_multiInstr.exe
 
 APP_BIN      = ${OUT_HOST_DIR}/app.bin
 APP_GOLD_BIN = ${OUT_HOST_DIR}/app_gold.bin
@@ -433,8 +440,6 @@ ifeq ($(shell test $(GEMX_numKernels) -gt 3; echo $$?),0)
 endif
 
 host : ${HOST_EXE} ${GEN_BIN_EXE} ${APP_GOLD_TXT} 
-
-api_gemm : ${API_GEMM_EXE}
 
 ${HOST_EXE} : ./src/* | ${OUT_HOST_DIR}
 	@echo "***** Compile host executable *****"
