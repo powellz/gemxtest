@@ -9,6 +9,12 @@ DSA_PATH=${XILINX_SDX}/platforms
 GCC_PATH=${XILINX_VIVADO}/tps/lnx64
 BOOST_SRC=${PWD}/../../boost/src
 BOOST_LIB=${PWD}/../../boost/lib
+
+ifeq ("$(wildcard $(BOOST_SRC))","")
+  BOOST_SRC=${PWD}/../boost/src
+  BOOST_LIB=${PWD}/../boost/lib
+endif
+
 export BOOST_COMPUTE_DEFAULT_VENDOR=Xilinx
 
 
@@ -22,7 +28,7 @@ GEMX_ddrWidth      =  32
 GEMX_argInstrWidth =   1
 GEMX_numInstr      =  16
 
-GEMX_spmvWidth   				= 8 
+GEMX_spmvWidth     = 8 
 GEMX_spmvkVectorBlocks  = 2048
 GEMX_spmvMacGroups      = 12 
 GEMX_spmvPadA       		= 0 
