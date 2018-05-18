@@ -19,8 +19,6 @@ KERNEL_NAME = gemxKernel
 GEMX_dataType      = short
 GEMX_dataEqIntType = short
 GEMX_ddrWidth      =  32 
-GEMX_XdataType		 = int32_t 
-GEMX_XddrWidth		 = 16 
 GEMX_argInstrWidth =   1
 GEMX_numInstr      =  16
 
@@ -85,8 +83,6 @@ else ifeq (${GEMX_part},ku115)
   PLATFORM_REPO_PATH=$(DSA_PATH)/${DSA_PLATFORM}
   XOPENCL_LIB_PATH=${DSA_PATH}/../runtime/lib/x86_64
 else ifeq (${GEMX_part},vu9pf1)
-  CLCC_OPT += --xp param:compiler.acceleratorBinaryContent="bitstream"
-  CLCC_OPT += --xp vivado_param:hd.routingContainmentAreaExpansion=true 
   DSA=4_0
   XDEVICE_COLON=xilinx:aws-vu9p-f1:4ddr-xpr-2pr:$(subst _,.,${DSA})
   XDEVICE=xilinx_aws-vu9p-f1_4ddr-xpr-2pr_${DSA}
@@ -142,21 +138,13 @@ CFLAGS_K = $(GMEM_FLAGS) -I ./src -I ../src \
 	   -I ./src/python \
           -D TEST_SDX=1 \
           -D GEMX_dataType=$(GEMX_dataType) \
-          -D GEMX_XdataType=$(GEMX_XdataType) \
           -D GEMX_dataEqIntType=$(GEMX_dataEqIntType) \
           -D GEMX_ddrWidth=$(GEMX_ddrWidth) \
-          -D GEMX_XddrWidth=$(GEMX_XddrWidth) \
           -D GEMX_argInstrWidth=$(GEMX_argInstrWidth) \
           -D GEMX_numInstr=$(GEMX_numInstr) \
           -D GEMX_gemvkVectorBlocks=$(GEMX_gemvkVectorBlocks) \
           -D GEMX_gemvmVectorBlocks=$(GEMX_gemvmVectorBlocks) \
           -D GEMX_gemvmGroups=$(GEMX_gemvmGroups) \
-	  			-D GEMX_gemmMBlocks=${GEMX_gemmMBlocks} \
-	  			-D GEMX_gemmKBlocks=${GEMX_gemmKBlocks} \
-	  			-D GEMX_gemmNBlocks=${GEMX_gemmNBlocks} \
-					-D GEMX_keepMacBits=${GEMX_keepMacBits} \
-	  			-D GEMX_macBits=${GEMX_macBits} \
-          -D GEMX_transpBlocks=$(GEMX_transpBlocks) \
           -D GEMX_spmvWidth=$(GEMX_spmvWidth) \
           -D GEMX_spmvkVectorBlocks=$(GEMX_spmvkVectorBlocks) \
           -D GEMX_spmvMacGroups=$(GEMX_spmvMacGroups) \
@@ -164,19 +152,8 @@ CFLAGS_K = $(GMEM_FLAGS) -I ./src -I ../src \
           -D GEMX_spmvPadA=$(GEMX_spmvPadA) \
           -D GEMX_spmvNumCblocks=$(GEMX_spmvNumCblocks) \
           -D GEMX_spmvFloatPerDesc=$(GEMX_spmvFloatPerDesc) \
-           -D GEMX_idxType=${GEMX_idxType} \
-           -D GEMX_nnzBlocks=${GEMX_nnzBlocks} \
-           -D GEMX_spmvKmaxBlocks=${GEMX_spmvKmaxBlocks} \
-           -D GEMX_spmvMmaxBlocks=${GEMX_spmvMmaxBlocks} \
-           -D GEMX_spmvUramGroups=${GEMX_spmvUramGroups} \
           -D GEMX_argPipeline=$(GEMX_argPipeline) \
           -D GEMX_part=$(GEMX_part) \
-           -D GEMX_useURAM=${GEMX_useURAM} \
-	  			-D GEMX_splitMesh=${GEMX_splitMesh} \
-	  			-D GEMX_runGemv=$(GEMX_runGemv) \
-	  			-D GEMX_runGemm=$(GEMX_runGemm) \
-	  			-D GEMX_runTransp=$(GEMX_runTransp) \
-	  			-D GEMX_runSpmv=$(GEMX_runSpmv) \
 	  			-D GEMX_numKernels=${GEMX_numKernels} \
           -Wno-ignored-attributes \
            
@@ -335,9 +312,6 @@ XCLBIN = ${OUT_DIR}/gemx.xclbin
 OUT_HOST_DIR = out_host
 HOST_EXE = ${OUT_HOST_DIR}/gemx_host.exe
 GEN_BIN_EXE = ${OUT_HOST_DIR}/gemx_gen_bin.exe
-API_GEMM_EXE = ${OUT_HOST_DIR}/gemx_api_gemm.exe
-API_SPMV_EXE = ${OUT_HOST_DIR}/gemx_api_spmv.exe
-API_GEMM_MULTI_INSTR_EXE = ${OUT_HOST_DIR}/gemx_api_gemm_multiInstr.exe
 
 APP_BIN      = ${OUT_HOST_DIR}/app.bin
 APP_GOLD_BIN = ${OUT_HOST_DIR}/app_gold.bin
@@ -346,18 +320,6 @@ APP_TXT      = ${OUT_HOST_DIR}/app.txt
 APP_GOLD_TXT = ${OUT_HOST_DIR}/app_gold.txt
 APP_OUT_TXT  = ${OUT_DIR}/app_out.txt
 MAKE_EXIT_OK_HW_FILE = out_hw/gemx.xclbin
-
-#python binding for GEMX host code
-GEMX_HOST_SRC = gemx_host_c_api.cpp
-GEMX_HOST_LIB = ${OUT_HOST_DIR}/lib/libgemxhost.so
-GEMX_HOST_OBJS = $(addprefix ${OUT_HOST_DIR}/objs/,$(addsuffix .o,$(basename $(GEMX_HOST_SRC))))
-GEMX_HOST_INCLUDE = -I . -I $(BOOST_SRC) -I ./src -I$(XILINX_SDX)/runtime/include/1_2
-GEMX_HOST_CFLAGS = -O3 -std=c++11 -fPIC \
-		        	-DBOOST_COMPUTE_HAVE_THREAD_LOCAL -DCL_USE_DEPRECATED_OPENCL_1_1_APIS -DBOOST_COMPUTE_THREAD_SAFE\
-		   -D GEMX_fpgaDdrBanks=${GEMX_fpgaDdrBanks} \
-					-Wno-ignored-attributes
-
-GEMX_HOST_LFLAGS = -L$(BOOST_LIB) -L$(XOPENCL_LIB_PATH) -lz -lxilinxopencl -lstdc++ -lrt -pthread
 
 KERNEL_XOS = ${OUT_DIR}/k0dir/gemx.xo
 ifeq ($(shell test $(GEMX_numKernels) -gt 1; echo $$?),0)
@@ -375,25 +337,7 @@ endif
 
 .PHONY: all
 
-#all: host run_cpu_em run_hw_em run_hw
-all: gemx_func_test
-
-host_lib: ${GEMX_HOST_LIB}
-	@echo Done
-clean_host: 	
-	rm -rf ${OUT_HOST_DIR}
-	
-gemm_perf: ${API_GEMM_EXE}
-	+make SDA_FLOW=hw run_hw_int  2>&1 | tee log-run_hw.txt; test -f ${MAKE_EXIT_OK_HW_FILE}
-					
-spmv_perf: ${API_SPMV_EXE}
-	+make SDA_FLOW=hw run_hw_int  2>&1 | tee log-run_hw.txt; test -f ${MAKE_EXIT_OK_HW_FILE}
-
-gemx_func_test: host
-	+make SDA_FLOW=sw_emu run_em_int  2>&1 | tee log-run_cpu_em.txt
-
-gemm_test_python: ${GEMX_HOST_LIB}
-	+make SDA_FLOW=hw run_hw_int  2>&1 | tee log-run_hw.txt; test -f ${MAKE_EXIT_OK_HW_FILE}
+all: host run_cpu_em run_hw_em run_hw 
 
 run_cpu_em: host
 	+make SDA_FLOW=sw_emu run_em_int  2>&1 | tee log-run_cpu_em.txt
@@ -443,19 +387,6 @@ endif
 
 host : ${HOST_EXE} ${GEN_BIN_EXE} ${APP_GOLD_TXT} 
 
-api_gemm : ${API_GEMM_EXE}
-api_spmv : ${API_SPMV_EXE}
-
-${GEMX_HOST_OBJS} : ./src/* | ${OUT_HOST_DIR}
-	@echo "**** Compile host binding for Python ****"
-	${CC} $(GEMX_HOST_INCLUDE) $(GEMX_HOST_CFLAGS) $(GEMX_HOST_LFLAGS) -c ./src/host/${GEMX_HOST_SRC} -o $@ 
-
-${GEMX_HOST_LIB} : ${GEMX_HOST_OBJS}
-	@echo "**** Create libgemxhost.so for Python ****"
-	${CC} -shared ${GEMX_HOST_LFLAGS} -o $@ ${GEMX_HOST_OBJS}
-	chmod a+rx ${OUT_HOST_DIR}/lib
-	chmod a+r ${OUT_HOST_DIR}/lib/*
-
 ${HOST_EXE} : ./src/* | ${OUT_HOST_DIR}
 	@echo "***** Compile host executable *****"
 	${CC} ${HOST_CFLAGS} ${HOST_LFLAGS} src/gemx_pca_main.cpp -o $@ 
@@ -490,10 +421,10 @@ xbinst_hw:  host
 	$(DSA_PATH)/../bin/xbinst --platform_repo_paths=${PLATFORM_REPO_PATH} --platform $(XDEVICE) -d ${OUT_DIR}
 
 clean :
-	+make SDA_FLOW=sw_emu clean_int
-	+make SDA_FLOW=hw_emu clean_int
+	+make SDA_FLOW=cpu_em clean_int
+	+make SDA_FLOW=hw_em clean_int
 	+make SDA_FLOW=hw clean_int
-	${RM} -rf ${OUT_HOST_DIR} sdaccel_profile* .Xil _sds iprepo bd.* *.bit *.ltx *.dat *.hpfm *.xml _new_clk_freq dr.bd.tcl
+	${RM} -rf ${OUT_HOST_DIR} _xocc_link_gemx_gemx.dir sdaccel_profile* .Xil _sds iprepo bd.* *.cf *.bit *.ltx *.xtxt *.log *.dat *.hpfm *.xml _new_clk_freq dr.bd.tcl
 
 clean_int:
 	${RM} -rf ${OUT_DIR} log-run_${SDA_FLOW}.txt
@@ -512,4 +443,3 @@ ${OUT_HOST_DIR} :
 ${OUT_DIR}/k%dir : | ${OUT_DIR}
 	@echo "************* Creating DIR $@ *************"
 	mkdir $@
-        

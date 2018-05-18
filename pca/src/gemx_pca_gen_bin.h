@@ -95,14 +95,14 @@ showTimeData(std::string p_Task, TimePointType &t1, TimePointType &t2, double *p
 class MtxRow {
   private:
     unsigned int m_Row, m_Col ;
-    double m_Val;
+    float m_Val;
   public:
     MtxRow() : m_Row(0), m_Col(0), m_Val(0) {}
-    MtxRow(double p_Val, unsigned int p_Row, unsigned int p_Col)
+    MtxRow(float p_Val, unsigned int p_Row, unsigned int p_Col)
       : m_Row(p_Row), m_Col(p_Col), m_Val(p_Val) {}
     unsigned int getRow() {return m_Row;}
     unsigned int getCol() {return m_Col;}
-    double getVal() {return m_Val;}
+    float getVal() {return m_Val;}
     void
     scan(std::istream& p_Is) {
         p_Is >>  m_Row >> m_Col >> m_Val;
@@ -503,8 +503,10 @@ class SpMat
     std::vector<MtxRow>
     getNnzVector() {
         std::vector<MtxRow> l_rows;
+				0 && std::cout << "DEBUG::getNnzVector: m_Cblocks = " << m_Cblocks << std::endl;
         for (unsigned int l_cBlock = 0; l_cBlock < m_Cblocks; ++l_cBlock) {
           SpmvAdescType l_desc = getDesc(l_cBlock);
+					0 && std::cout << "DEBUG::nnz=" << l_desc.getNnz() << "\n";
           for (unsigned int i = 0; i < l_desc.getNnz(); ++i) {
             typename SpMat::SpmvAdType l_Ad = getVal(l_desc.getOffset() * t_numSpmvPerPage + i);
             typename SpMat::SpmvAType l_A(l_Ad);
@@ -635,13 +637,15 @@ class Mat
       }
     
     void
-    pcaSpmv(SpMat<T, TspD, Tsp> & p_A, Mat & p_B, FloatType &p_Norm, FloatType p_Threshold) {
+    pcaSpmv(SpMat<T, TspD, Tsp> & p_A, Mat & p_B, FloatType &p_Norm, unsigned int p_TopK) {
+				//p_TopK: maximum number of element in the result vector. not processed yet.
         T l_val = 0;
         assert(p_A.rows() == rows());
         assert(p_A.cols() == p_B.rows());
         assert(p_B.cols() == cols());
         std::vector<MtxRow> l_rows =  p_A.getNnzVector();
-				//std::cout << "p_Norm = " << std::setw(GEMX_FLOAT_WIDTH) << std::fixed << std::setprecision(3) << p_Norm << "\n";
+				0 && std::cout << "DEBUG::size of A is: " << l_rows.size() << std::endl;
+				std::cout << "p_Norm = " << std::setw(GEMX_FLOAT_WIDTH) << std::fixed << std::setprecision(3) << p_Norm << "\n";
 				for (unsigned int i=0; i < rows(); ++i) {
 					getVal(i,0)=0;
 				}
@@ -649,37 +653,35 @@ class Mat
           unsigned int row = l_row.getRow(),
                        col = l_row.getCol();
           T l_val = l_row.getVal();
+					
+					T l_tmp1;
+					T l_tmp2;
+
 					if (p_Norm != 0) {
-						T l_tmp1 =  (p_B.getVal(col, 0)/p_Norm);
-							l_tmp1 = (l_tmp1 < p_Threshold)? 0: l_tmp1;
-						T l_tmp2 = l_val * l_tmp1;
-          	getVal(row, 0) += l_tmp2;
+						l_tmp1 =  (p_B.getVal(col, 0)/p_Norm);
 					}
 					else {
-						T l_tmp = l_val * p_B.getVal(col, 0);
-          	getVal(row, 0) += l_tmp;
+						l_tmp1 = p_B.getVal(col, 0);
 					}
-					//if ((row == 0) && (col == 0)) {
-          //std::cout << "DEBUG multiplySpmv row=" << row << " col=" << col << "  "
-          //          << l_val << " * " << p_B.getVal(col, 0)
-          //          << " was added to " << getVal(row, 0) << "\n";
-					//}
+					
+					l_tmp2 = l_val * l_tmp1;
+          getVal(row, 0) += l_tmp2;
         }
 				p_Norm=0;
 				for (unsigned int i=0; i < rows(); ++i) {
 					T l_val = getVal(i,0);
 					T l_tmp = l_val * l_val;
 					p_Norm += l_tmp;
+
+          //std::cout << "DEBUG pcaSpmv add entry " << i << " with value " << l_val << " and square " << l_tmp << " =  " << p_Norm << std::endl;
 				}
 				p_Norm = sqrt(p_Norm);
-				//std::cout << "After Normalization, p_Norm = " << std::setw(GEMX_FLOAT_WIDTH) << std::fixed << std::setprecision(3) << p_Norm << "\n";
+				std::cout << "After Normalization, p_Norm = " << std::setw(GEMX_FLOAT_WIDTH) << std::fixed << std::setprecision(3) << p_Norm << "\n";
     }
     void
     print(std::ostream& os) {
         os << m_Rows << "x" << m_Cols << " Ld=" << m_Ld << "\n";
-        unsigned int l_cols = 
-          cols(); // normal matrix
-          //ld();; // parent matrix (within Ld
+        unsigned int l_cols = cols(); // normal matrix
         for (unsigned int row = 0; row < rows(); ++row) {
           for (unsigned int col = 0; col < l_cols; ++col) {
             os << std::setw(GEMX_FLOAT_WIDTH) << int(getVal(row, col)) << " ";
@@ -829,7 +831,6 @@ SpMatType_ForFloat::fillMod(float p_Max) {
 typedef SpmvType::SpmvAdType SpmvAdType;
 typedef SpmvType::SpmvAType SpmvAType;
 typedef Mat<GEMX_dataType, SpmvAdType, SpmvAType > MatType;
-typedef Mat<GEMX_XdataType, SpmvAdType, SpmvAType> XMatType;
 typedef SpMat<GEMX_dataType, SpmvAdType, SpmvAType > SpMatType;
 
 ////////////////////////  SPMV  ////////////////////////
@@ -899,7 +900,8 @@ class MtxFile
             align (m_M, GEMX_spmvWidth * GEMX_spmvMacGroups);  // Align for loadC
             //align (m_M, GEMX_ddrWidth);
             assert(m_M % GEMX_spmvWidth == 0);
-            align (m_K, GEMX_ddrWidth);  
+            //align (m_K, GEMX_ddrWidth);  
+            align (m_K, GEMX_spmvWidth * GEMX_spmvMacGroups);  // Align for loadC
             std::cout << "INFO: loaded mtx file"
                      << "  M " << rows()
                      << "  K " << cols()
@@ -995,7 +997,7 @@ class GenPca
       unsigned int p_M,
       unsigned int p_K,
       unsigned int p_Nnz,
-			float p_Threshold,
+			unsigned int p_TopK,
       MtxFile p_MtxFile,
       std::string p_handleA,
       std::string p_handleB,
@@ -1020,17 +1022,21 @@ class GenPca
     unsigned int l_pageC = p_Program.allocPages(p_handleC, l_newAllocC, p_M * 1);
     
     // Get addresses where matrices are stored
-    SpMatType l_matA(p_M, p_K, p_Nnz, 0, p_Program.getPageAddr(l_pageA));
-    MatType l_matB(p_K, 1, 1,       p_Program.getPageAddr(l_pageB));
-    MatType l_matC(p_M, 1, 1,       p_Program.getPageAddr(l_pageC));
+    //SpMatType l_matA(p_M, p_K, p_Nnz, 0, p_Program.getPageAddr(l_pageA));
+    //MatType l_matB(p_K, 1, 1,       p_Program.getPageAddr(l_pageB));
+    //MatType l_matC(p_M, 1, 1,       p_Program.getPageAddr(l_pageC));
     
     // Large matrix support
     unsigned int l_Cblocks = (p_M + SpmvType::getRowsInCblock() - 1) / SpmvType::getRowsInCblock();
+    // Get addresses where matrices are stored
+    SpMatType l_matA(p_M, p_K, p_Nnz, l_Cblocks, p_Program.getPageAddr(l_pageA));
+    MatType l_matB(p_K, 1, 1,       p_Program.getPageAddr(l_pageB));
+    MatType l_matC(p_M, 1, 1,       p_Program.getPageAddr(l_pageC));
     
     // Instruction
     PcaArgsType l_pcaArgs(
         l_pageA, l_pageB, l_pageC,
-        p_M, p_K, p_Nnz, p_Threshold, l_Cblocks, l_numDescPages
+        p_M, p_K, p_Nnz, p_TopK, l_Cblocks, l_numDescPages
       );
     PcaKargsType l_kargs;
     l_kargs.setPcaArgs(l_pcaArgs);
@@ -1049,7 +1055,7 @@ class GenPca
     
     // Calculate reference C = A * B
     if (p_WithGolden) {
-      l_matC.pcaSpmv(l_matA, l_matB, p_Norm, p_Threshold);
+      l_matC.pcaSpmv(l_matA, l_matB, p_Norm, p_TopK);
     }
     std::cout << "Added SPMV " << p_M << "x" << p_K << " Nnz=" << p_Nnz << "  ";
     //std::cout << "DEBUG A:\n" << l_matA << "\n";

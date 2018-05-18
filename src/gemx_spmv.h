@@ -92,8 +92,13 @@ class Spmv
     t_FloatType m_C[t_SpmvWidth][t_MacGroups][t_mVectorBlocks * t_DdrWidth];
     SpmvAdesc m_Desc[t_NumCblocks];
     static const unsigned int t_LcmSpmvWidthAndMacGroups = findLCM<t_SpmvWidth, t_MacGroups>::result;
-    //DdrWideType m_A[16];
     static const unsigned int t_Debug = 0;
+    static const unsigned int t_Debug_xBarColSplit = 0;
+    static const unsigned int t_Debug_colUnit = 0;
+    static const unsigned int t_Debug_xBarRowSplit = 0;
+    static const unsigned int t_Debug_xBarRowMerge = 0;
+    static const unsigned int t_Debug_rowInterleave = 0;
+    static const unsigned int t_Debug_rowUnit = 0;
 
   private:
     
@@ -354,7 +359,7 @@ class Spmv
             #pragma HLS UNROLL
             unsigned int l_colBank = l_val[w].getColBank();
             p_Sout[w][l_colBank].write(l_val[w]);
-            t_Debug && std::cout << "DEBUG: xBarColSplit " << " read " << l_val[w]
+            t_Debug_xBarColSplit && std::cout << "DEBUG: xBarColSplit " << " read " << l_val[w]
                                  << "  and sent it to col bank " << l_colBank << "\n";
           }
         }
@@ -432,11 +437,11 @@ class Spmv
           #pragma HLS LOOP_TRIPCOUNT min=1 max=36870
           #pragma HLS PIPELINE
           if (p_Sin.read_nb(l_val)) {
-            t_Debug && std::cout << "DEBUG: colUnit " << t_BankId << " read     " << l_val << "\n";
+            t_Debug_colUnit && std::cout << "DEBUG: colUnit " << t_BankId << " read     " << l_val << "\n" << std::flush;
             unsigned int l_colOffset = l_val.getColOffset();
             t_FloatType l_valB = m_B[t_BankId][l_colOffset];
             SpmvABType l_valOut(l_val.getA(), l_valB, l_val.getRow());
-            t_Debug && std::cout << "DEBUG: colUnit " << t_BankId << " computed " << l_valOut << "\n";
+            t_Debug_colUnit && std::cout << "DEBUG: colUnit " << t_BankId << " computed " << l_valOut << "\n" << std::flush;
             p_Sout.write(l_valOut);
           } else {
             if (l_preDone) {
@@ -484,8 +489,8 @@ class Spmv
               unsigned int l_rowBank = l_val.getRowBank();
               p_Sout[w][l_rowBank].write(l_val);
               l_activity[w] = true;
-              t_Debug && std::cout << "DEBUG: xBarRowSplit " << " read " << l_val
-                                 << "  and sent it to row bank " << l_rowBank << "\n";
+              t_Debug_xBarRowSplit && std::cout << "DEBUG: xBarRowSplit " << " read " << l_val
+                                 << "  and sent it to row bank " << l_rowBank << "\n" << std::flush;
             }
             
             bool l_unused;
@@ -541,10 +546,10 @@ class Spmv
             if (p_Sin[l_idx][b].read_nb(l_val)) {
               p_Sout[b].write(l_val);
               l_activity[b] = true;
-              t_Debug && std::cout << "DEBUG: xBarRowMerge bank " << b 
+              t_Debug_xBarRowMerge && std::cout << "DEBUG: xBarRowMerge bank " << b 
                                    << " read input position " << l_idx
                                    << " value " << l_val
-                                   << "  and sent it to its bank\n";
+                                   << "  and sent it to its bank\n" << std::flush;
             }
           }
         }
@@ -591,8 +596,8 @@ class Spmv
             
             p_Sout[l_rowGroup].write(l_val);
             l_activity = true;
-            t_Debug && std::cout << "DEBUG: rowInterleave bank " << t_BankId << " read " << l_val
-                               << "  and sent it to row group " << l_rowGroup << "\n";
+            t_Debug_rowInterleave && std::cout << "DEBUG: rowInterleave bank " << t_BankId << " read " << l_val
+                               << "  and sent it to row group " << l_rowGroup << "\n" << std::flush;
           }
         }
         p_ScntlPost.write(true);
@@ -637,7 +642,7 @@ class Spmv
           LOOP_RU_G_CALC:for (int g = 0; g < t_MacGroups; ++g) {
             #pragma HLS UNROLL
             if (p_Sin[g].read_nb(abVal[g])) {
-              t_Debug && std::cout << "DEBUG: rowUnit " << t_BankId << " slot " << g
+              t_Debug_rowUnit && std::cout << "DEBUG: rowUnit " << t_BankId << " slot " << g
                                    << " read " << abVal[g] << "\n";
               cVal[g].getC() = abVal[g].getA() * abVal[g].getB();
               cVal[g].setRow(abVal[g].getRow());
@@ -891,7 +896,6 @@ class Spmv
         rowUnit(l_fifoRIout[w], l_fifoRUout[w], l_controlRiDone[w], l_controlRUpost[w], w);
         aggUnit(l_fifoRUout[w], l_controlRUpost[w], w);
      }
-
     }
 
     void

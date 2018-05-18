@@ -65,10 +65,13 @@ class Pca {
 		static const unsigned int t_NumDdrPerSpmv = t_DdrWidth / t_SpmvWidth;
 		Spmv<t_FloatType, t_FloatEqIntType, t_DdrWidth, t_SpmvWidth, t_kVectorBlocks, t_mVectorBlocks, t_MacGroups, t_ColAddIdxBits, t_NumCblocks, t_FloatPerDesc> m_Spmv;
 		t_FloatType m_Norm;
+
+		static const unsigned int t_Debug_runPca = 0;
+		static const unsigned int t_Debug_calcNormC = 0;
 	
 	private:
 		void
-		normZeroOutB(DdrWideStreamType &p_inS, DdrWideStreamType &p_outS, unsigned int p_kBlocks, t_FloatType p_Threshold) {
+		normZeroOutB(DdrWideStreamType &p_inS, DdrWideStreamType &p_outS, unsigned int p_kBlocks, unsigned int p_TopK) {
 			LOOP_PCA_NORMB:for(unsigned int i=0; i<p_kBlocks; ++i) {
 			#pragma HLS PIPELINE REWIND
 				DdrWideType l_val;
@@ -77,7 +80,6 @@ class Pca {
 					if (m_Norm !=0){
 						l_val[j] = l_val[j]/m_Norm;
 					}
-					l_val[j] = (l_val[j] < p_Threshold)? 0: l_val[j];
 				}
 				p_outS.write(l_val);
 			}
@@ -92,6 +94,8 @@ class Pca {
 			#pragma HLS UNROLL
 				l_sum[i] = 0;
 			}
+
+			//unsigned int l_totalWord=0;//only used for debugging
 			LOOP_PCA_CALCNORMC:for (unsigned int l_block=0; l_block < l_blocks; ++l_block) {
 			#pragma HLS PIPELINE
 				DdrWideType l_val;
@@ -100,18 +104,21 @@ class Pca {
 				#pragma HLS UNROLL
 					l_sum[i] += l_val[i] * l_val[i];
 				}
+				//l_totalWord++;
+				t_Debug_calcNormC && std::cout <<"DEBUG: calcNormC " << "After adding entry " << int(l_totalWord)
+							<< " with value " << l_val << "\n"
+							<< " l_sum = " << l_sum << std::endl;
 			}
-			m_Norm = 0;
 			for (unsigned int i=0; i<t_DdrWidth; ++i) {
 			#pragma HLS PIPELINE
 				m_Norm += l_sum[i];
 			}
-			m_Norm = hls::sqrtf(m_Norm);
+			t_Debug_calcNormC && std::cout <<"DEBUG: calcNormC " << "add l_sum together = " << m_Norm << std::endl;
 		}
 
 	public:
 		void
-		loadNormB(DdrWideType *p_bAddr, unsigned int p_kBlocks, t_FloatType p_Threshold) {
+		loadNormB(DdrWideType *p_bAddr, unsigned int p_kBlocks, unsigned int p_TopK) {
 		#pragma HLS DATAFLOW
 			DdrWideStreamType l_bS;
 			#pragma HLS DATA_PACK variable=l_bS
@@ -122,7 +129,7 @@ class Pca {
 			#pragma HLS STREAM variable=l_normBs depth=4	
 
 			m_Spmv.loadB2Stream(p_bAddr, l_bS, p_kBlocks);
-			normZeroOutB(l_bS, l_normBs, p_kBlocks, p_Threshold);
+			normZeroOutB(l_bS, l_normBs, p_kBlocks, p_TopK);
 			m_Spmv.storeBFromStream(l_normBs, p_kBlocks);
 		}
 
@@ -145,22 +152,23 @@ class Pca {
 			t_FloatType &p_Norm
 		){
       #pragma HLS inline off
-			//std::cout << "KERNEL:p_Norm = " << std::setw(GEMX_FLOAT_WIDTH) << std::fixed << std::setprecision(3) << p_Norm << "\n";
+			t_Debug_runPca && std::cout << "DEBUG: runpca " << "p_Norm = " << std::setw(GEMX_FLOAT_WIDTH) << p_Norm << std::endl;
 			m_Norm = p_Norm;
 			// Load entire B into BRAM
 			const unsigned int l_kBlocks = p_Args.m_K / t_DdrWidth;
       assert(l_kBlocks * t_DdrWidth == p_Args.m_K);
       assert(l_kBlocks <= t_kVectorBlocks * t_SpmvWidth);
       DdrWideType *l_bAddr = p_DdrRd + p_Args.m_Boffset * DdrWideType::per4k();
-			t_FloatType l_threshold;
-			l_threshold = p_Args.m_Threshold;
-      loadNormB(l_bAddr, l_kBlocks, l_threshold); // in DDR units
+			unsigned int l_topK;
+			l_topK = p_Args.m_TopK;
+      loadNormB(l_bAddr, l_kBlocks, l_topK); // in DDR units
 
 			// Load C block descriptors
 			const unsigned int l_Cblocks = p_Args.m_Cblocks;
       const unsigned int l_descDdrWords = (l_Cblocks + t_numDescPerDdr - 1) / t_numDescPerDdr;
       DdrWideType *l_dAddr = p_DdrRd + p_Args.m_Aoffset * DdrWideType::per4k();
       m_Spmv.loadD(l_dAddr, l_descDdrWords);  // in descriptor units
+			m_Norm = 0;
 			for (unsigned int l_Cblock = 0; l_Cblock < l_Cblocks; ++l_Cblock) {
 				SpmvAdesc l_desc = m_Spmv.getDesc(l_Cblock);
 				unsigned int l_nnz = l_desc.getNnz();
@@ -187,8 +195,8 @@ class Pca {
 				// Store C
 				storeCandCalcNorm(l_cAddr, l_mgdBlocks);
 			}
-			p_Norm = m_Norm;
-			//std::cout << "KERNEL:After Normalization, p_Norm = " << std::setw(GEMX_FLOAT_WIDTH) << std::fixed << std::setprecision(3) << p_Norm << "\n";
+			p_Norm = hls::sqrtf(m_Norm);
+			t_Debug_runPca && std::cout << "DEBUG: runPca " << "p_Norm = " << std::setw(GEMX_FLOAT_WIDTH) << p_Norm << std::endl;
 		}
 };
 }
