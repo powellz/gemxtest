@@ -105,9 +105,9 @@ class Pca {
 					l_sum[i] += l_val[i] * l_val[i];
 				}
 				//l_totalWord++;
-				t_Debug_calcNormC && std::cout <<"DEBUG: calcNormC " << "After adding entry " << int(l_totalWord)
-							<< " with value " << l_val << "\n"
-							<< " l_sum = " << l_sum << std::endl;
+				//t_Debug_calcNormC && std::cout <<"DEBUG: calcNormC " << "After adding entry " << int(l_totalWord)
+					//		<< " with value " << l_val << "\n"
+						//	<< " l_sum = " << l_sum << std::endl;
 			}
 			for (unsigned int i=0; i<t_DdrWidth; ++i) {
 			#pragma HLS PIPELINE
