@@ -116,7 +116,7 @@ if __name__ == '__main__':
 
   for j in range (1,30):
       for k in range(1,18):
-          for n in range(1000):
+          #for n in range(1000):
               for i in range (int(xclbin_opts["GEMX_numKernels"])):
                   test.test_rand_basic( i, xclbin_opts, [j,k], 2048)    
       
