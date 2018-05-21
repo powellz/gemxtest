@@ -318,6 +318,7 @@ XCLBIN = ${OUT_DIR}/gemx.xclbin
 OUT_HOST_DIR = out_host
 HOST_EXE = ${OUT_HOST_DIR}/gemx_host.exe
 GEN_BIN_EXE = ${OUT_HOST_DIR}/gemx_gen_bin.exe
+API_PCA_EXE = ${OUT_HOST_DIR}/gemx_api_pca.exe
 
 APP_BIN      = ${OUT_HOST_DIR}/app.bin
 APP_GOLD_BIN = ${OUT_HOST_DIR}/app_gold.bin
@@ -405,7 +406,12 @@ ${APP_GOLD_TXT} : ${GEN_BIN_EXE}
 	${GEN_BIN_EXE} -write ${APP_BIN} ${GEN_BIN_PROGRAM}
 	${GEN_BIN_EXE} -read ${APP_BIN} > ${APP_TXT}
 	${GEN_BIN_EXE} -read ${APP_GOLD_BIN} > ${APP_GOLD_TXT}
-
+	
+${API_PCA_EXE} : ./src/* | ${OUT_HOST_DIR}
+	@echo "***** Compile testcase generator executable *****"
+	@echo ${CC} ${HOST_CFLAGS} ${HOST_LFLAGS}
+	${CC} ${HOST_CFLAGS} ${HOST_LFLAGS} src/gemx_api_pca.cpp -o $@
+	
 xconfig : ${OUT_HOST_DIR}/emconfig.json | ${OUT_HOST_DIR}
 
 ${OUT_HOST_DIR}/emconfig.json :
