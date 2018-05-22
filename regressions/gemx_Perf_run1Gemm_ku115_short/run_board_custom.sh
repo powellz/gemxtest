@@ -25,7 +25,15 @@ nice out_host/gemx_api_gemm.exe out_hw/gemx.xclbin  2048 27648 2048 27648 2048 2
 #logs="$logs log-276482048.txt"
 
 #python test
-python tests/test_gemm.py --xclbin out_hw/gemx.xclbin --gemxlib out_host/lib/libgemxhost.so --device ku115 | tee log-python.txt
+export PYTHONPATH=./src/python
+python tests/test_gemm.py --xclbin out_hw/gemx.xclbin --gemxlib out_host/lib/libgemxhost.so --cfg out_hw/config_info.dat | tee log-python.txt
+
+/bin/rm -f perf_gemm_api_cpp.csv perf_gemm_api_python.csv
+egrep -h ^DATA_CSV $logs_cpp | grep DdrWidth | head -1 > perf_gemm_api_cpp.csv
+egrep -h ^DATA_CSV $logs_cpp | grep -v DdrWidth >> perf_gemm_api_cpp.csv
+
+egrep -h ^DATA_CSV log-python.txt | grep DdrWidth | head -1 > perf_gemm_api_python.csv
+egrep -h ^DATA_CSV log-python.txt | grep -v DdrWidth >> perf_gemm_api_python.csv
 
 /bin/rm -f perf_gemm_api_cpp.csv perf_gemm_api_python.csv
 egrep -h ^DATA_CSV $logs | grep DdrWidth | head -1 > perf_gemm_api_cpp.csv
