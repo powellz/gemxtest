@@ -68,7 +68,8 @@ int main(int argc, char **argv)
   unsigned int l_m[l_instrCount], l_k[l_instrCount], l_nnz[l_instrCount], l_topK[l_instrCount];
   std::string l_mtxFileName("none");
   GEMX_dataType l_norm = 0;
-  printf("GEMX-spmv C++ API example using accelerator image \n",
+  
+  printf("GEMX-pca C++ API example using accelerator image \n",
        l_xclbinFile.c_str());
        
   GenPca l_pca;
@@ -85,7 +86,7 @@ int main(int argc, char **argv)
        l_mtxFileName = argv[l_argIdx++];
        MtxFile l_mtxFile(l_mtxFileName);
        //The check() modifies the dimensions when loading from a matrix file. Please use 0 for l_M, l_K and l_NNZ when provding matrix file
-       l_pca.check(l_m[index], l_k[index], l_nnz[index],l_mtxFile);
+       l_pca.check(l_m[index], l_k[index], l_nnz[index], l_mtxFile);
        std::string l_handleA = argv[l_argIdx++];
        std::string l_handleB = argv[l_argIdx++];
        std::string l_handleC = argv[l_argIdx++];
@@ -170,7 +171,7 @@ int main(int argc, char **argv)
   unsigned long int l_total_theory_cycles = 0;
   for(int j=0;j<l_instrCount;++j){
     l_total_Ops += 2ull * l_nnz[j] + 2 * l_m[j];
-    l_total_theory_cycles += 2 * l_m[j] / 16 + l_k[j] / 16 + l_nnz[j] / 8;
+    l_total_theory_cycles += 2 * l_m[j] / 16 + l_k[j] / 16 + l_nnz[j] / 8 + 2 * l_m[j] / 16;
   }
   double l_effCycles;
   KargsType l_kargsRes[GEMX_numKernels];
