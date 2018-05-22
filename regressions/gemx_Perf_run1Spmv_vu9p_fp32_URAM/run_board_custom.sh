@@ -16,7 +16,7 @@ logs="$logs log-diag16k.txt log-image_interp.txt log-mario001.txt log-1.txt"
  
 #python test
 export PYTHONPATH=./src/python
-python -u tests/test_spmv.py --xclbin out_hw/gemx.xclbin --gemxlib out_host/lib/libgemxhost.so --cfg out_hw/config_info.dat | tee log-python.txt
+python -u tests/test_spmv.py --xclbin out_hw/gemx.xclbin --gemxlib out_host/lib/libgemxhost.so --cfg out_hw/config_info.dat >& log-python.txt
 
 /bin/rm -f perf_gemm_api.csv
 egrep -h ^DATA_CSV $logs | grep DdrWidth | head -1 > perf_gemm_api.csv
