@@ -14,14 +14,11 @@ def test_multiInstrv1(int_range, m, k, n, add_bias=False):
     C = np.zeros ((m, n), dtype=np.int16);
     D = np.random.randint(low=-int_range, high=int_range, size=(m, k), dtype=np.int16)
     E = np.zeros ((m, n), dtype=np.int16);
-    b0 = np.zeros ((m, n), dtype=np.int32);
-        
-    b1 = np.zeros ((m, n), dtype=np.int32);
-    
+    b0 = np.zeros ((m, n), dtype=np.int32);        
+    b1 = np.zeros ((m, n), dtype=np.int32);    
     if add_bias == True:
         b0 = np.random.randint(low=-int_range, high=int_range, size=(m, n), dtype=np.int32)
         b1 = np.random.randint(low=-int_range, high=int_range, size=(m, n), dtype=np.int32)
-        
     gemx.sendMat(A)
     gemx.sendMat(B)
     gemx.sendMat(b0)
@@ -35,9 +32,9 @@ def test_multiInstrv1(int_range, m, k, n, add_bias=False):
     gemx.getMat(C)
     gemx.getMat(E)
     print("test C")
-    test.multiply_and_cmp(C, A, B, b0, m, n, [1, 0])
+    test.multiply_and_cmp(C, A, B, b0, m, n, [1, 13],[307, 10])
     print("test E")
-    test.multiply_and_cmp(E, D, C, b1, m, n, [1, 0])
+    test.multiply_and_cmp(E, D, C, b1, m, n, [1, 18],[307, 10])
       
 def test_perf_fcn(A_range, B_range, bias_range, m, k, n, post_scale):
     mat_A = np.random.randint(low=-A_range, high=A_range, size=(m, k), dtype=np.int16)
