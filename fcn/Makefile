@@ -31,71 +31,37 @@ KERNEL_NAME = gemxKernel
 GEMX_dataType      = short
 GEMX_dataEqIntType = short
 GEMX_ddrWidth      =  32 
-GEMX_XdataType		 = int32_t 
-GEMX_XddrWidth		 = 16 
+GEMX_XdataType     = int32_t 
+GEMX_XddrWidth     = 16 
 GEMX_argInstrWidth =   1
 GEMX_numInstr      =  16
 
 GEMX_gemvkVectorBlocks  = 512
 GEMX_gemvmVectorBlocks  = 512
-GEMX_gemvmGroups   			=  1
+GEMX_gemvmGroups        =  1
  
 
-GEMX_gemmMBlocks   			= 1 
-GEMX_gemmKBlocks   			= 2
-GEMX_gemmNBlocks   			= 1
-GEMX_splitMesh	   			= 0
+GEMX_gemmMBlocks        = 1 
+GEMX_gemmKBlocks        = 2
+GEMX_gemmNBlocks        = 1
+GEMX_splitMesh          = 0
 
-GEMX_keepMacBits				= 0
-GEMX_macBits						= 48
+GEMX_keepMacBits        = 0
+GEMX_macBits            = 48
 
-GEMX_transpBlocks  			= 1
-
-GEMX_spmvWidth   				= 8 
-GEMX_spmvkVectorBlocks  = 2048
-GEMX_spmvMacGroups      = 12 
-GEMX_spmvPadA       		= 1
-GEMX_spmvNumCblocks 		= 1024
-GEMX_spmvFloatPerDesc 	= 4
-
-# Correlated for IdxBits 2 => row idx < 2**14 so blocks 10 (2**14 / ddrw / spmvw / groups
-GEMX_spmvColAddIdxBits  = 2
-
-
-GEMX_argPipeline   			= 2
-GEMX_part          			= vcu1525
-GEMX_kernelHlsFreq	   	= 250 
-GEMX_kernelVivadoFreq  	= 250
+GEMX_argPipeline        = 2
+GEMX_part               = vcu1525
+GEMX_kernelHlsFreq      = 250 
+GEMX_kernelVivadoFreq   = 250
 # How many kernels to replicate in the accelerator (use 1 to 4)
-GEMX_numKernels    			= 1
-# What engines get included in each accelerator kernel (use 0 or 1)
-# The more engines you include the more catability you get but P&R
-# P&R becomes more difficult thus you get lower Fmax
-GEMX_runGemv 						= 0 
-GEMX_runGemm 						= 1
-GEMX_runTransp 					= 0
-GEMX_runSpmv 						= 0
+GEMX_numKernels         = 1
 
 ##############################
 
-# Defauts for SPMV 32-wide
-ifeq (${GEMX_ddrWidth}, 32)
-  GEMX_spmvWidth   			=  8
-endif
-
 ifeq (${GEMX_dataType}, float)
-  GEMX_dataEqIntType 		= int
-  
+  GEMX_dataEqIntType    = int 
   GEMX_gemvmVectorBlocks = 43
-  
-  GEMX_spmvPadA 				= 0
-  GEMX_spmvFloatPerDesc = 2
-  GEMX_spmvMacGroups    =   12
-  ifeq (${GEMX_ddrWidth}, 16)
-    GEMX_spmvWidth   		=  8
-    #GEMX_spmvmVectorBlocks  =  10
-  endif
-  
+    
 endif
 
 ifeq (${GEMX_part},kcu1500)
@@ -197,27 +163,15 @@ CFLAGS_K = $(GMEM_FLAGS) -I ./src -I ../src \
           -D GEMX_gemvkVectorBlocks=$(GEMX_gemvkVectorBlocks) \
           -D GEMX_gemvmVectorBlocks=$(GEMX_gemvmVectorBlocks) \
           -D GEMX_gemvmGroups=$(GEMX_gemvmGroups) \
-	  			-D GEMX_gemmMBlocks=${GEMX_gemmMBlocks} \
-	  			-D GEMX_gemmKBlocks=${GEMX_gemmKBlocks} \
-	  			-D GEMX_gemmNBlocks=${GEMX_gemmNBlocks} \
-					-D GEMX_keepMacBits=${GEMX_keepMacBits} \
-	  			-D GEMX_macBits=${GEMX_macBits} \
-          -D GEMX_transpBlocks=$(GEMX_transpBlocks) \
-          -D GEMX_spmvWidth=$(GEMX_spmvWidth) \
-          -D GEMX_spmvkVectorBlocks=$(GEMX_spmvkVectorBlocks) \
-          -D GEMX_spmvMacGroups=$(GEMX_spmvMacGroups) \
-          -D GEMX_spmvColAddIdxBits=$(GEMX_spmvColAddIdxBits) \
-          -D GEMX_spmvPadA=$(GEMX_spmvPadA) \
-          -D GEMX_spmvNumCblocks=$(GEMX_spmvNumCblocks) \
-          -D GEMX_spmvFloatPerDesc=$(GEMX_spmvFloatPerDesc) \
+          -D GEMX_gemmMBlocks=${GEMX_gemmMBlocks} \
+          -D GEMX_gemmKBlocks=${GEMX_gemmKBlocks} \
+          -D GEMX_gemmNBlocks=${GEMX_gemmNBlocks} \
+          -D GEMX_keepMacBits=${GEMX_keepMacBits} \
+          -D GEMX_macBits=${GEMX_macBits} \
           -D GEMX_argPipeline=$(GEMX_argPipeline) \
           -D GEMX_part=$(GEMX_part) \
-	  			-D GEMX_splitMesh=${GEMX_splitMesh} \
-	  			-D GEMX_runGemv=$(GEMX_runGemv) \
-	  			-D GEMX_runGemm=$(GEMX_runGemm) \
-	  			-D GEMX_runTransp=$(GEMX_runTransp) \
-	  			-D GEMX_runSpmv=$(GEMX_runSpmv) \
-	  			-D GEMX_numKernels=${GEMX_numKernels} \
+          -D GEMX_splitMesh=${GEMX_splitMesh} \
+          -D GEMX_numKernels=${GEMX_numKernels} \
           -Wno-ignored-attributes \
            
 KERNEL_DEFS += $(CFLAGS_K)
@@ -237,12 +191,16 @@ XP_VIVADO_PARAMS+=--xp param:compiler.fanoutLimit=0
 #CLCC_OPT: CLCC options for both compile and link
 #CLCC_COMP_OPT: CLCC options only for compile mode
 #CLCC_LINK_OPT: CLCC options only for link mode
-CLCC_OPT += -t ${SDA_FLOW}
+ifeq (${SDA_FLOW},cpu_emu)
+	CLCC_OPT += -t sw_emu
+else
+	CLCC_OPT += -t ${SDA_FLOW}
+endif
 ifeq (${SDA_FLOW},hw_emu)
     ifeq ($(HWEMUGUI),1)
         CLCC_OPT += --xp param:hw_em.debugLevel=GUI
-		else
-				CLCC_OPT += --xp param:compiler.preserveHlsOutput=1 --report system
+    else
+        CLCC_OPT += --xp param:compiler.preserveHlsOutput=1 --report system
     endif
 endif
 
@@ -253,10 +211,10 @@ HOST_CFLAGS = -g -O2 -std=c++11 \
               -I $(BOOST_SRC) \
               -DCL_USE_DEPRECATED_OPENCL_1_1_APIS \
               -DBOOST_COMPUTE_DEBUG_KERNEL_COMPILATION \
-	      			-DBOOST_COMPUTE_HAVE_THREAD_LOCAL \
-	      			-DBOOST_COMPUTE_THREAD_SAFE \
+              -DBOOST_COMPUTE_HAVE_THREAD_LOCAL \
+              -DBOOST_COMPUTE_THREAD_SAFE \
               -D FLOW_HLS_CSIM $(CFLAGS_K) \
-	      			-D HLS_NO_XIL_FPO_LIB=1 \
+              -D HLS_NO_XIL_FPO_LIB=1 \
               -I$(XILINX_SDX)/Vivado_HLS/include \
               -I$(XILINX_VIVADO)/include \
               -I${XILINX_SDX}/runtime/include/1_2 
@@ -267,12 +225,12 @@ HOST_LFLAGS = \
               -L$(BOOST_LIB) \
               -lboost_iostreams -lz \
               -L${GCC_PATH}/gcc-${GCC_VERSION}/lib64 \
-							-lxilinxopencl \
-							-lstdc++ \
-							-L${XOPENCL_LIB_PATH} \
+              -lxilinxopencl \
+              -lstdc++ \
+              -L${XOPENCL_LIB_PATH} \
               -lrt \
               -pthread \
-							-Wl,--rpath=${XOPENCL_LIB_PATH} \
+              -Wl,--rpath=${XOPENCL_LIB_PATH} \
               -Wl,--rpath=$(BOOST_LIB) \
               -Wl,--rpath=${GCC_PATH}/gcc-${GCC_VERSION}/lib64 \
               
@@ -333,7 +291,7 @@ endif
 SHELL = /bin/bash
 VPATH = ${PWD}
 
-#supported flow: sw_emu, hw_emu, hw
+#supported flow: cpu_emu, hw_emu, hw
 CC = ${GCC_PATH}/gcc-${GCC_VERSION}/bin/g++
 CLCC = $(XILINX_SDX)/bin/xocc
 
@@ -405,10 +363,10 @@ endif
 all: host run_cpu_em run_hw_em run_hw 
 
 run_cpu_em: host
-	+make SDA_FLOW=sw_emu run_em_int  2>&1 | tee log-run_cpu_em.txt
+	+make SDA_FLOW=cpu_emu run_em_int  2>&1 | tee log-run_cpu_emu.txt
 
 run_hw_em: host
-	+make SDA_FLOW=hw_emu run_em_int  2>&1 | tee log-run_hw_em.txt
+	+make SDA_FLOW=hw_emu run_em_int  2>&1 | tee log-run_hw_emu.txt
 
 run_hw: host
 	+make SDA_FLOW=hw run_hw_int  2>&1 | tee log-run_hw.txt; test -f ${MAKE_EXIT_OK_HW_FILE}
@@ -480,10 +438,10 @@ xbinst_hw:  host
 	$(DSA_PATH)/../bin/xbinst --platform_repo_paths=${PLATFORM_REPO_PATH} --platform $(XDEVICE) -d ${OUT_DIR}
 
 clean :
-	+make SDA_FLOW=sw_emu clean_int
+	+make SDA_FLOW=cpu_emu clean_int
 	+make SDA_FLOW=hw_emu clean_int
 	+make SDA_FLOW=hw clean_int
-	${RM} -rf ${OUT_HOST_DIR} sdaccel_profile* .Xil _sds iprepo bd.* *.bit *.ltx *.dat *.hpfm *.xml _new_clk_freq dr.bd.tcl
+	${RM} -rf ${OUT_HOST_DIR} _xocc_link_gemx_gemx.dir sdaccel_profile* .Xil _sds iprepo bd.* *.bit *.ltx *.dat *.hpfm *.xml _new_clk_freq dr.bd.tcl
 
 clean_int:
 	${RM} -rf ${OUT_DIR} log-run_${SDA_FLOW}.txt

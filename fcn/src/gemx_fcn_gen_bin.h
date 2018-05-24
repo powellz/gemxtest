@@ -75,7 +75,6 @@ typedef gemx::ControlArgs ControlArgsType;
 typedef FcnType::FcnArgsType FcnArgsType;
 typedef DdrMatrixShapeType::FormatType MatFormatType;
 #define GEMX_maxNumInstr 64
-#define GEMX_transpEdgeSize (GEMX_ddrWidth * GEMX_transpBlocks)
 #define VERBOSE 1 
 typedef std::chrono::time_point<std::chrono::high_resolution_clock> TimePointType;
 inline void
