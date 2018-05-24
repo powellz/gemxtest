@@ -28,39 +28,39 @@ GEMX_ddrWidth      =  32
 GEMX_argInstrWidth =   1
 GEMX_numInstr      =  16
 
-GEMX_spmvWidth     = 8 
+GEMX_spmvWidth          = 8 
 GEMX_spmvkVectorBlocks  = 2048
 GEMX_spmvMacGroups      = 12 
-GEMX_spmvPadA       		= 0 
-GEMX_spmvNumCblocks 		= 1024
+GEMX_spmvPadA           = 0 
+GEMX_spmvNumCblocks     = 1024
 GEMX_spmvFloatPerDesc 	= 2 
 
 # Correlated for IdxBits 2 => row idx < 2**14 so blocks 10 (2**14 / ddrw / spmvw / groups
 GEMX_spmvColAddIdxBits  = 2
 
 
-GEMX_argPipeline   			= 2
-GEMX_part          			= vcu1525
-GEMX_kernelHlsFreq	   	= 250 
-GEMX_kernelVivadoFreq  	= 250
+GEMX_argPipeline        = 2
+GEMX_part               = vcu1525
+GEMX_kernelHlsFreq      = 250 
+GEMX_kernelVivadoFreq   = 250
 # How many kernels to replicate in the accelerator (use 1 to 4)
-GEMX_numKernels    			= 1
+GEMX_numKernels         = 1
 
 ##############################
 
 # Defauts for SPMV 32-wide
 ifeq (${GEMX_ddrWidth}, 32)
-  GEMX_spmvWidth   			=  8
+  GEMX_spmvWidth        =  8
 endif
 
 ifeq (${GEMX_dataType}, float)
-  GEMX_dataEqIntType 		= int
+  GEMX_dataEqIntType     = int
   GEMX_gemvmVectorBlocks = 43
-  GEMX_spmvPadA 				= 0
-  GEMX_spmvFloatPerDesc = 2
-  GEMX_spmvMacGroups    =   12
+  GEMX_spmvPadA          = 0
+  GEMX_spmvFloatPerDesc  = 2
+  GEMX_spmvMacGroups     = 12
   ifeq (${GEMX_ddrWidth}, 16)
-    GEMX_spmvWidth   		=  8
+    GEMX_spmvWidth   	 =  8
   endif
 endif
 
@@ -184,8 +184,8 @@ CLCC_OPT += -t ${SDA_FLOW}
 ifeq (${SDA_FLOW},hw_emu)
     ifeq ($(HWEMUGUI),1)
         CLCC_OPT += --xp param:hw_em.debugLevel=GUI
-		else
-				CLCC_OPT += --xp param:compiler.preserveHlsOutput=1 --report system
+    else
+        CLCC_OPT += --xp param:compiler.preserveHlsOutput=1 --report system
     endif
 endif
 
@@ -196,11 +196,11 @@ HOST_CFLAGS = -g -O0 -std=c++11 \
               -I $(BOOST_SRC) \
               -DCL_USE_DEPRECATED_OPENCL_1_1_APIS \
               -DBOOST_COMPUTE_DEBUG_KERNEL_COMPILATION \
-	      			-DBOOST_COMPUTE_HAVE_THREAD_LOCAL \
-	      			-DBOOST_COMPUTE_THREAD_SAFE \
+              -DBOOST_COMPUTE_HAVE_THREAD_LOCAL \
+              -DBOOST_COMPUTE_THREAD_SAFE \
               -D FLOW_HLS_CSIM $(CFLAGS_K) \
-	      			-D HLS_NO_XIL_FPO_LIB=1 \
-							-I$(XILINX_SDX)/Vivado_HLS/include \
+              -D HLS_NO_XIL_FPO_LIB=1 \
+              -I$(XILINX_SDX)/Vivado_HLS/include \
               -I$(XILINX_VIVADO)/include \
               -I${XILINX_SDX}/runtime/include/1_2 
 
@@ -210,12 +210,12 @@ HOST_LFLAGS = \
               -L$(BOOST_LIB) \
               -lboost_iostreams -lz \
               -L${GCC_PATH}/gcc-${GCC_VERSION}/lib64 \
-							-lxilinxopencl \
-							-lstdc++ \
-							-L${XOPENCL_LIB_PATH} \
+              -lxilinxopencl \
+              -lstdc++ \
+              -L${XOPENCL_LIB_PATH} \
               -lrt \
               -pthread \
-							-Wl,--rpath=${XOPENCL_LIB_PATH} \
+              -Wl,--rpath=${XOPENCL_LIB_PATH} \
               -Wl,--rpath=$(BOOST_LIB) \
               -Wl,--rpath=${GCC_PATH}/gcc-${GCC_VERSION}/lib64 \
               
