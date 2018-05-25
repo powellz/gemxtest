@@ -66,7 +66,7 @@ def test_spmv_mtxfile(mtxpath,vector_range):
   else:
      print ("only sparse matrix is supported")
 
-def test_spmv(m,k,nnz,vector_range):
+def test_spmv(m,k,nnz,vector_range=32764):
   row  = np.random.randint(low=0, high=m, size=(nnz, 1), dtype=np.int32)
   col  = np.random.randint(low=0, high=k, size=(nnz, 1), dtype=np.int32)
   data = np.zeros ((nnz, 1), dtype=np.float32)
