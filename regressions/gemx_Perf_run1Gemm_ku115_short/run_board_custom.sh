@@ -29,4 +29,6 @@ python tests/test_gemm.py --xclbin out_hw/gemx.xclbin --gemxlib out_host/lib/lib
 egrep -h ^DATA_CSV $logs | grep DdrWidth | head -1 > perf_gemm_api_cpp.csv
 egrep -h ^DATA_CSV $logs | grep -v DdrWidth >> perf_gemm_api_cpp.csv
 
-
+/bin/rm -f perf_gemm_api_python.csv
+egrep -h ^DATA_CSV log-python.txt | grep DdrWidth | head -1 > perf_gemm_api_python.csv
+egrep -h ^DATA_CSV log-python.txt | grep -v DdrWidth >> perf_gemm_api_python.csv

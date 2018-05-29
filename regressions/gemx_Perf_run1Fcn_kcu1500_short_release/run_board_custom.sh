@@ -32,3 +32,7 @@ python ../tests/test_fcn.py --xclbin out_hw/gemx.xclbin --gemxlib ../out_host/li
 egrep -h ^DATA_CSV $logs | grep DdrWidth | head -1 > perf_gemm_api.csv
 egrep -h ^DATA_CSV $logs | grep -v DdrWidth >> perf_gemm_api.csv
 echo Results are in perf_gemm_api.csv
+
+/bin/rm -f perf_gemm_api_python.csv
+egrep -h ^DATA_CSV log-python.txt | grep DdrWidth | head -1 > perf_gemm_api_python.csv
+egrep -h ^DATA_CSV log-python.txt | grep -v DdrWidth >> perf_gemm_api_python.csv
