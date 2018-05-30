@@ -14,8 +14,6 @@
 #include <vector>
 #include <future>
 
-#include <boost/thread.hpp>
-#include <boost/asio.hpp>
 #include <boost/thread/barrier.hpp>
 
 #include "semaphore.h"
