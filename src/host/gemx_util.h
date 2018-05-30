@@ -4,6 +4,7 @@
 #include <chrono>
 #include <assert.h>
 #include <boost/assert.hpp>
+#include <thread>
 using namespace std;
 
 #define XASSERT(cond, msg) {\
@@ -16,6 +17,20 @@ using namespace std;
 }
 
 namespace gemx{
+
+string getThreadIdStr()
+{
+    return boost::lexical_cast<std::string>(std::this_thread::get_id());
+}
+
+unsigned long getThreadId(){
+    std::string threadId = getThreadIdStr();
+    //unsigned long threadNumber =
+    //sscanf(threadId.c_str(), "%lx", &threadNumber);
+    return std::stol(threadId);
+}
+
+
 
 class XTimer
 {
