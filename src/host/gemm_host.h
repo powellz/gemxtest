@@ -50,7 +50,6 @@ public:
     static vector<unsigned> getDDRBankFlags(const string & device)
     {
         vector<unsigned>ddrBanks;
-        unsigned ddr_flags;
         if ( device == "ku115" || device == "kcu1500" ){
             ddrBanks = {XCL_MEM_DDR_BANK0, XCL_MEM_DDR_BANK1, XCL_MEM_DDR_BANK2, XCL_MEM_DDR_BANK3};
         }
@@ -152,14 +151,18 @@ public:
         XTimer t;
         this->_fpga_stream->copyToFpga(this->_cl_instr_buf, false);
         this->_fpga_stream->execKernel(this->_cl_instr_buf, sync_exec);
-        memset(this->_instrBuf.get(), 0, PAGE_SIZE);
-        this->_instr_offset = 0;
 #ifdef GEMX_PERF_DBG
         cout << "Execute: " << t.elapsed() << endl;
 #endif
     }
 
+    virtual void ClearInstrBuf()
+    {
+        memset(this->_instrBuf.get(), 0, PAGE_SIZE);
+        this->_instr_offset = 0;
+    }
 protected:
+
     void AddInstr  ( kArgs * args )
     {
         char * instr = args->asByteArray();
