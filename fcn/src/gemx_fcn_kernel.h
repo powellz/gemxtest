@@ -47,10 +47,6 @@
 #define GEMX_pageSizeBytes 4096
 #define GEMX_instructionSizeBytes 64
 
-// C storage matches the row index range in cblock; this must be rounded down (hence int division) from the
-// row index range so that every stored row is indexable
-#define GEMX_spmvmVectorBlocks ((1 << (16 - GEMX_spmvColAddIdxBits)) / GEMX_spmvWidth / GEMX_spmvMacGroups / GEMX_ddrWidth)
-
 // The extern C still needed - otherwise cpu emu fails
 //   prj_sda.exe: symbol lookup error: ./dltmp: undefined symbol: kernelSgemm
 #ifdef TEST_SDX

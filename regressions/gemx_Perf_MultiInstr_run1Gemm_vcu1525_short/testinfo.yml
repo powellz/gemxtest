@@ -4,7 +4,7 @@ owner: yifei
 platforms: [lnx64]
 products: [sdx]
 tasks:
-  software: {command: run.sh, cpu_cores: 4, level: 7, memory: 16}
+  software: {command: run.sh, cpu_cores: 4, level: 7, memory: 30}
   board:
     depends: [software]
     command: run_board.sh

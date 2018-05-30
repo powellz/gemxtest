@@ -31,7 +31,7 @@ class Test:
             print (A[i]," is different from ",B[i])         
           sys.exit()  
           
-  def multiply_and_cmp(self,C, A, B, X, m, n, post_scale):
+  def multiply_and_cmp(self,C, A, B, X, m, n, post_scale, pRelu_val = [1,0]):
       # Calculate golden C
       #start_compute = time.time()
       m64 = np.int64(np.round(np.matmul(np.float64(A), np.float64(B))))  # intermediate accumulation to 64 bits
@@ -41,7 +41,12 @@ class Test:
       output64 = m64 + bias64
       o64d = output64 * post_scale[0]
       o64m = o64d // (2 ** post_scale[1])
-      C_cpu = np.int16(o64m)  # scale down for 16 bits
+      o64m = np.int16(o64m)
+      if pRelu_val != [1,0]:
+        for entry in np.nditer(o64m, op_flags=['readwrite']):
+          if entry < 0:
+              entry[...] = entry * pRelu_val[0] // (2 ** pRelu_val[1])
+      C_cpu = np.int16(o64m)  # scale down for 16 bits    
       if np.array_equal(C, C_cpu):
           print ("Success!\n")
       else:
@@ -183,6 +188,6 @@ class SpmvTest(Test):
         if l_val > Max:
           l_val -= Max
 
-        
+
 class GemmTest(Test):               
   pass

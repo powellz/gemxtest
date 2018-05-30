@@ -14,14 +14,11 @@ def test_multiInstrv1(int_range, m, k, n, add_bias=False):
     C = np.zeros ((m, n), dtype=np.int16);
     D = np.random.randint(low=-int_range, high=int_range, size=(m, k), dtype=np.int16)
     E = np.zeros ((m, n), dtype=np.int16);
-    b0 = np.zeros ((m, n), dtype=np.int32);
-        
-    b1 = np.zeros ((m, n), dtype=np.int32);
-    
+    b0 = np.zeros ((m, n), dtype=np.int32);        
+    b1 = np.zeros ((m, n), dtype=np.int32);    
     if add_bias == True:
         b0 = np.random.randint(low=-int_range, high=int_range, size=(m, n), dtype=np.int32)
         b1 = np.random.randint(low=-int_range, high=int_range, size=(m, n), dtype=np.int32)
-        
     gemx.sendMat(A)
     gemx.sendMat(B)
     gemx.sendMat(b0)
@@ -35,9 +32,9 @@ def test_multiInstrv1(int_range, m, k, n, add_bias=False):
     gemx.getMat(C)
     gemx.getMat(E)
     print("test C")
-    test.multiply_and_cmp(C, A, B, b0, m, n, [1, 0])
+    test.multiply_and_cmp(C, A, B, b0, m, n, [1, 13],[307, 10])
     print("test E")
-    test.multiply_and_cmp(E, D, C, b1, m, n, [1, 0])
+    test.multiply_and_cmp(E, D, C, b1, m, n, [1, 18],[307, 10])
       
 def test_perf_fcn(A_range, B_range, bias_range, m, k, n, post_scale):
     mat_A = np.random.randint(low=-A_range, high=A_range, size=(m, k), dtype=np.int16)
@@ -64,10 +61,7 @@ def test_perf_fcn(A_range, B_range, bias_range, m, k, n, post_scale):
     total_parallel_operations = 2 * m * n * k
     freq = gemx.getFreq()
     test.test_perf(timePointKernel,total_operations,total_parallel_operations,freq,m,k,n)
-    if m > 4096 and n > 4096 and k > 4096:
-      print("Skip golden comparision because large matrix size")
-    else:
-      test.multiply_and_cmp(C_fpga, mat_A, mat_B, bias, m, n, post_scale)
+    test.multiply_and_cmp(C_fpga, mat_A, mat_B, bias, m, n, post_scale)
       
 def test_perf_multi_fcn(ins_count, m_size, k_size, n_size, A_range, B_range, post_scale):
     total_operations = 0
@@ -103,10 +97,7 @@ def test_perf_multi_fcn(ins_count, m_size, k_size, n_size, A_range, B_range, pos
     timePointKernel.append(time.time()) # copy from FPGA
     freq = gemx.getFreq()
     test.test_perf(timePointKernel,total_operations,total_parallel_operations,freq,0,0,0)
-    if np.max(m_size) > 4096 and np.max(k_size) > 4096 and np.max(n_size) > 4096:
-      print("Skip golden comparision because large matrix size")
-    else:
-      test.multiply_and_cmp(mat_C[3], mat_A[3], mat_C[2], mat_bias[3], m_size[3], n_size[3], post_scale)
+    test.multiply_and_cmp(mat_C[3], mat_A[3], mat_C[2], mat_bias[3], m_size[3], n_size[3], post_scale)
 
 if __name__ == '__main__':
   np.random.seed(123)  # for reproducibility
@@ -114,15 +105,20 @@ if __name__ == '__main__':
   args, xclbin_opts = gemx.processCommandLine()
   gemx.createFCNHandle( args, xclbin_opts)
 
-  for j in range (1,30):
-      for k in range(1,18):
-          for n in range(1000):
+  for j in range (1,3):
+      for k in range(1,8):
+          #for n in range(1000):
               for i in range (int(xclbin_opts["GEMX_numKernels"])):
                   test.test_rand_basic( i, xclbin_opts, [j,k], 2048)    
       
   # test.test_rand_basic (32764, 0, 5, [1,0]) # larger matrix size will lead to hw timeout error in regression test
   test_multiInstrv1(32764, 512, 512, 128, True) 
   
+  size=256
+  while size < 8192:
+      test_perf_fcn(32764,32764,32764,size,size,size,[1,0]) # run performance measurement
+      size =  size * 2
+      
   m_size=np.array([512,512,2048,128])
   k_size=np.array([384,512,512,2048])
   n_size=np.array([32,32,32,32])   
