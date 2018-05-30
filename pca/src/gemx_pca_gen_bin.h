@@ -557,6 +557,8 @@ std::ostream& operator<<(std::ostream& os, SpMat<T1, T2, T3>& p_Val) {
 template < typename T, typename TspD, typename Tsp>
 class Mat
 {
+	private:
+		static const unsigned int t_MaxTopK=256;
   private:
     unsigned int m_Rows, m_Cols, m_Ld; 
     T *m_Addr;
@@ -637,15 +639,15 @@ class Mat
       }
     
     void
-    pcaSpmv(SpMat<T, TspD, Tsp> & p_A, Mat & p_B, FloatType &p_Norm, unsigned int p_TopK) {
+    pcaSpmv(SpMat<T, TspD, Tsp> & p_A, Mat & p_B, FloatType &p_Norm, FloatType &p_MinK, unsigned int p_TopK) {
 				//p_TopK: maximum number of element in the result vector. not processed yet.
+				FloatType l_topKs[t_MaxTopK];
+
         T l_val = 0;
         assert(p_A.rows() == rows());
         assert(p_A.cols() == p_B.rows());
         assert(p_B.cols() == cols());
         std::vector<MtxRow> l_rows =  p_A.getNnzVector();
-				0 && std::cout << "DEBUG::size of A is: " << l_rows.size() << std::endl;
-				std::cout << "p_Norm = " << std::setw(GEMX_FLOAT_WIDTH) << std::fixed << std::setprecision(3) << p_Norm << "\n";
 				for (unsigned int i=0; i < rows(); ++i) {
 					getVal(i,0)=0;
 				}
@@ -657,26 +659,51 @@ class Mat
 					T l_tmp1;
 					T l_tmp2;
 
-					if (p_Norm != 0) {
-						l_tmp1 =  (p_B.getVal(col, 0)/p_Norm);
+					if (abs(p_B.getVal(col, 0) >= p_MinK)) {
+						l_tmp1 = p_B.getVal(col,0);
+						if (p_MinK != 0) {
+							std::cout << "DEBUG:Host B[ = " << col << "]=" << std::setw(GEMX_FLOAT_WIDTH) << std::fixed << std::setprecision(6) << l_tmp1 << "\n";
+						}
 					}
 					else {
-						l_tmp1 = p_B.getVal(col, 0);
+						l_tmp1 = 0;	
+					}
+
+					if (p_Norm != 0) {
+						l_tmp1 =  (l_tmp1/p_Norm);
 					}
 					
 					l_tmp2 = l_val * l_tmp1;
           getVal(row, 0) += l_tmp2;
         }
+
+				for (unsigned int i=0; i<t_MaxTopK; ++i) {
+					l_topKs[i] = 0;
+				}
 				p_Norm=0;
 				for (unsigned int i=0; i < rows(); ++i) {
 					T l_val = getVal(i,0);
 					T l_tmp = l_val * l_val;
 					p_Norm += l_tmp;
-
-          //std::cout << "DEBUG pcaSpmv add entry " << i << " with value " << l_val << " and square " << l_tmp << " =  " << p_Norm << std::endl;
+         //std::cout << "DEBUG pcaSpmv add entry " << i << " with value " << l_val << " and square " << l_tmp << " =  " << p_Norm << std::endl;
+        	for (unsigned int j=0; j<p_TopK; ++j) {
+						if (abs(l_val) > l_topKs[j]) {
+							for (unsigned int k=p_TopK-1; k>j; --k){
+								l_topKs[k] = l_topKs[k-1];
+							}
+							l_topKs[j] = abs(l_val);
+							break;
+						}
+					}
 				}
 				p_Norm = sqrt(p_Norm);
-				std::cout << "After Normalization, p_Norm = " << std::setw(GEMX_FLOAT_WIDTH) << std::fixed << std::setprecision(3) << p_Norm << "\n";
+				p_MinK = l_topKs[p_TopK-1];
+				std::cout << "DEBUG:Host p_Norm = " << std::setw(GEMX_FLOAT_WIDTH) << std::fixed << std::setprecision(6) << p_Norm << "\n";
+				std::cout << "DEBUG:Host p_MinK = " << std::setw(GEMX_FLOAT_WIDTH) << std::fixed << std::setprecision(6) << p_MinK << "\n";
+				for (unsigned int i=0; i<t_MaxTopK; ++i) {
+					std::cout << "DEBUG:Host l_topKs[" <<i<<"]=" << std::setw(GEMX_FLOAT_WIDTH) << std::fixed << std::setprecision(6) << l_topKs[i] << "\n";
+				}
+				
     }
     void
     print(std::ostream& os) {
@@ -994,6 +1021,7 @@ class GenPca
     addInstr(
       ProgramType &p_Program,
 			FloatType &p_Norm,
+			FloatType &p_MinK,
       unsigned int p_M,
       unsigned int p_K,
       unsigned int p_Nnz,
@@ -1055,7 +1083,7 @@ class GenPca
     
     // Calculate reference C = A * B
     if (p_WithGolden) {
-      l_matC.pcaSpmv(l_matA, l_matB, p_Norm, p_TopK);
+      l_matC.pcaSpmv(l_matA, l_matB, p_Norm, p_MinK, p_TopK);
     }
     std::cout << "Added SPMV " << p_M << "x" << p_K << " Nnz=" << p_Nnz << "  ";
     //std::cout << "DEBUG A:\n" << l_matA << "\n";

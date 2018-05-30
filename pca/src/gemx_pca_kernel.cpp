@@ -80,6 +80,7 @@ kernelOpLow(
   TimeStampType::TimeType l_tsPrev = 0;
   KargsType l_kargsRes;
 	GEMX_dataType l_pcaNorm=0;
+	GEMX_dataType l_pcaMinK=0;
   for (unsigned int l_pc = 0; l_pc < GEMX_numInstr; ++l_pc) {
     KargsType l_kargs;
     KargsOpType l_op = l_kargs.loadFromInstr(l_code[l_pc]);
@@ -92,7 +93,7 @@ kernelOpLow(
       }
       case KargsType::OpPca: {
         PcaArgsType l_pcaArgs = l_kargs.getPcaArgs();
-        l_pca.runPca(p_DdrRd, p_DdrWr, l_pcaArgs, l_pcaNorm);
+        l_pca.runPca(p_DdrRd, p_DdrWr, l_pcaArgs, l_pcaNorm, l_pcaMinK);
         break;
       }
       default: {

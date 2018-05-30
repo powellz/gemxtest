@@ -55,7 +55,7 @@ int main(int argc, char** argv)
               << "    Ops:\n"
               << "      pca   M  K  Nnz  TopK  mtxFile   HandleA HandleB HandleC\n"
               << "    Examples:\n"
-              << "      gemx_gen_bin.exe -write app.bin pca 8 8 16 0.001 none A0 B0 C0\n"
+              << "      gemx_gen_bin.exe -write app.bin pca 0 0 0 8 mario001.mtx A0 B0 C0 pca 38496 38496 114648 8 none A0 C0 C1\n"
               << "      gemx_gen_bin.exe -read app_gold.bin\n"
               << "      gemx_gen_bin.exe -read app_gold.bin\n"
               << "      gemx_gen_bin.exe -compare 1e-3 1e-9 app_gold.bin app_out.bin\n"
@@ -100,6 +100,7 @@ int main(int argc, char** argv)
   GenControl l_control;
 	GenPca l_pca;
 	FloatType l_norm=0;
+	FloatType l_minK=0;
 
   if (l_write) {
     ProgramType l_p[2];  // 0 - no golden, 1 with golden
@@ -120,14 +121,14 @@ int main(int argc, char** argv)
           unsigned int l_m = atoi(argv[l_argIdx++]);
           unsigned int l_k = atoi(argv[l_argIdx++]);
           unsigned int l_nnz = atoi(argv[l_argIdx++]);
-					float l_topK = atoi(argv[l_argIdx++]);
+					unsigned int l_topK = atoi(argv[l_argIdx++]);
           std::string l_mtxFileName(argv[l_argIdx++]);
           std::string l_handleA(argv[l_argIdx++]);
           std::string l_handleB(argv[l_argIdx++]);
           std::string l_handleC(argv[l_argIdx++]);
           MtxFile l_mtxFile(l_mtxFileName);
           if (!l_pca.check(l_m, l_k, l_nnz, l_mtxFile)) exit(1);
-          l_pca.addInstr(l_p[wGolden], l_norm, l_m,  l_k, l_nnz, l_topK, l_mtxFile,
+          l_pca.addInstr(l_p[wGolden], l_norm, l_minK, l_m,  l_k, l_nnz, l_topK, l_mtxFile,
                           l_handleA, l_handleB, l_handleC, wGolden);
        } else {
          std::cerr << "ERROR: unknow op \"" << l_opName << "\"\n";

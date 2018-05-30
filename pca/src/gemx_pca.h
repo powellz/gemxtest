@@ -60,34 +60,47 @@ class Pca {
 		typedef typename Spmv<t_FloatType, t_FloatEqIntType, t_DdrWidth, t_SpmvWidth, t_kVectorBlocks, t_mVectorBlocks, t_MacGroups, t_ColAddIdxBits, t_NumCblocks, t_FloatPerDesc>::DdrWideStreamType DdrWideStreamType;
 
 	private:
+		static const unsigned int t_MaxTopK=256;
 		static const unsigned int t_numDescPerDdr = t_DdrWidth / t_FloatPerDesc;
 		static const unsigned int t_RowsInCblock = t_SpmvWidth * t_MacGroups * t_mVectorBlocks * t_DdrWidth;
 		static const unsigned int t_NumDdrPerSpmv = t_DdrWidth / t_SpmvWidth;
+		static const unsigned int t_DdrWordsPerBlock = t_SpmvWidth * t_MacGroups / t_DdrWidth;
 		Spmv<t_FloatType, t_FloatEqIntType, t_DdrWidth, t_SpmvWidth, t_kVectorBlocks, t_mVectorBlocks, t_MacGroups, t_ColAddIdxBits, t_NumCblocks, t_FloatPerDesc> m_Spmv;
 		t_FloatType m_Norm;
+		t_FloatType m_MinK;
 
 		static const unsigned int t_Debug_runPca = 0;
 		static const unsigned int t_Debug_calcNormC = 0;
 	
 	private:
 		void
-		normZeroOutB(DdrWideStreamType &p_inS, DdrWideStreamType &p_outS, unsigned int p_kBlocks, unsigned int p_TopK) {
+		normZeroOutB(DdrWideStreamType &p_inS, DdrWideStreamType &p_outS, unsigned int p_kBlocks) {
 			LOOP_PCA_NORMB:for(unsigned int i=0; i<p_kBlocks; ++i) {
 			#pragma HLS PIPELINE REWIND
-				DdrWideType l_val;
+				DdrWideType l_val, l_valZeroOut, l_valNorm;
 				p_inS.read(l_val);
 				for(unsigned int j=0; j<t_DdrWidth; ++j){
+					t_FloatType l_absVal = (l_val[j] < 0)? -l_val[j]: l_val[j];
+					if (l_absVal < m_MinK) {
+						l_valZeroOut[j] = 0;
+					}
+					else {
+						l_valZeroOut[j] = l_val[j];
+					}
+
 					if (m_Norm !=0){
-						l_val[j] = l_val[j]/m_Norm;
+						l_valNorm[j] = l_valZeroOut[j]/m_Norm;
+					}
+					else {
+						l_valNorm[j] = l_valZeroOut[j];
 					}
 				}
-				p_outS.write(l_val);
+				p_outS.write(l_valNorm);
 			}
 		}
 
 		void
-		calcNormC(DdrWideStreamType &p_inS, unsigned int p_mgdBlocks) {
-			const unsigned int t_DdrWordsPerBlock = t_SpmvWidth * t_MacGroups / t_DdrWidth;
+		calcNormC(DdrWideStreamType &p_inS, DdrWideStreamType &p_outS, unsigned int p_mgdBlocks) {
 			unsigned int l_blocks = p_mgdBlocks * t_DdrWordsPerBlock;
 			DdrWideType l_sum;
 			for (unsigned int i=0; i<t_DdrWidth; ++i){
@@ -102,8 +115,11 @@ class Pca {
 				p_inS.read(l_val);
 				for (unsigned int i=0; i<t_DdrWidth; ++i) {
 				#pragma HLS UNROLL
-					l_sum[i] += l_val[i] * l_val[i];
+					if (l_val[i] != 0) {
+						l_sum[i] += l_val[i] * l_val[i];
+					}
 				}
+				p_outS.write(l_val);
 				//l_totalWord++;
 				//t_Debug_calcNormC && std::cout <<"DEBUG: calcNormC " << "After adding entry " << int(l_totalWord)
 					//		<< " with value " << l_val << "\n"
@@ -111,14 +127,108 @@ class Pca {
 			}
 			for (unsigned int i=0; i<t_DdrWidth; ++i) {
 			#pragma HLS PIPELINE
-				m_Norm += l_sum[i];
+				if (l_sum[i] != 0) {
+					m_Norm += l_sum[i];
+				}
 			}
 			t_Debug_calcNormC && std::cout <<"DEBUG: calcNormC " << "add l_sum together = " << m_Norm << std::endl;
 		}
 
+		void 
+		cmpStep(
+			t_FloatType p_leftIn,
+			t_FloatType &p_cur,
+			t_FloatType &p_leftOut
+		) {
+			#pragma HLS inline self
+			//p_leftOut = (p_leftIn > p_cur)? p_cur: p_leftIn;
+			//p_cur = (p_leftIn > p_cur)? p_leftIn: p_cur;
+
+			if (p_leftIn > p_cur) {
+				p_leftOut = p_cur;
+				p_cur = p_leftIn;
+			}
+			else {
+				p_leftOut = p_leftIn;
+			}
+		}
+		
+		void
+		zeroOutK(DdrWideStreamType &p_inS, unsigned int p_mgdBlocks, unsigned int p_TopK, bool p_isFirstCall) {
+			unsigned int l_blocks = p_mgdBlocks * t_DdrWordsPerBlock;
+			DdrWideType l_absV;
+			#pragma HLS ARRAY_PARTITION variable=l_absV dim=1 complete
+
+			static WideType<t_FloatType, t_MaxTopK> m_TopKs;
+			#pragma HLS ARRAY_PARTITION variable=m_TopKs dim=1 complete
+
+			WideType<t_FloatType, t_MaxTopK+1> l_topKs;
+			#pragma HLS ARRAY_PARTITION variable=l_topKs dim=1 complete
+			
+			if (p_isFirstCall) {
+				for (unsigned int i=0; i<t_MaxTopK; ++i) {
+				#pragma HLS UNROLL
+					m_TopKs[i] = 0;
+				}
+			}
+
+			for (unsigned int i=0; i<t_MaxTopK; ++i) {
+			#pragma HLS UNROLL
+				l_topKs[i] = 0;
+			}
+
+			for(unsigned int i=0; i<l_blocks; ++i) {
+				DdrWideType l_val;
+				p_inS.read(l_val);
+				BoolArr<t_DdrWidth> l_isZero(false);
+				for (unsigned int j=0; j<t_DdrWidth; ++j) {
+				#pragma HLS UNROLL
+					l_isZero[j] = (l_val[j] == 0);
+				}
+				for(unsigned int j=0; j<t_DdrWidth; ++j){
+				#pragma HLS UNROLL
+					l_absV[j] = (l_val[j] < 0)? -l_val[j]: l_val[j];
+				}
+			
+				unsigned int l_id=0;
+				if (!l_isZero.Or()) {
+					LOOP_ZEROOUTK_SORT:for (unsigned int n=0; n<t_DdrWidth; ++n) {
+						t_FloatType l_cmpVal = l_absV[0];
+						l_topKs[0] = l_absV[0];
+
+						if (l_cmpVal > m_TopKs[p_TopK-1]){
+							for (unsigned int k=0; k<t_MaxTopK; ++k) {
+							#pragma HLS UNROLL
+								cmpStep(l_topKs[k], m_TopKs[k], l_topKs[k+1]);
+							}
+						}
+						(void)l_absV.unshift();
+					}	
+				}
+			}
+
+			//if ((l_topKs[0] > 4.1333) && (m_TopKs[16] < 4.1333)) {
+				//t_Debug_runPca && std::cout << "DEBUG:runPca " << "l_topKs[0] = " << std::setw(GEMX_FLOAT_WIDTH) << l_topKs[0] << "m_TopKs[16] = " << m_TopKs[16] <<  std::endl;
+			//}
+
+			//flush out pipeline
+			for (unsigned int n=0; n<t_DdrWidth; ++n) {
+				l_topKs[0] = 0;
+				for (unsigned int k=0; k<t_MaxTopK; ++k) {
+					cmpStep(l_topKs[k], m_TopKs[k], l_topKs[k+1]);
+				}
+			}
+			m_MinK = m_TopKs[p_TopK-1];
+			if (t_Debug_runPca) {
+				for (unsigned int i=0; i<p_TopK; ++i) {
+					std::cout << "DEBUG:runPca " << "m_TopKs[" << i << "]=" << std::setw(GEMX_FLOAT_WIDTH) << m_TopKs[i] << std::endl;
+				}
+			}
+		}
+
 	public:
 		void
-		loadNormB(DdrWideType *p_bAddr, unsigned int p_kBlocks, unsigned int p_TopK) {
+		loadNormB(DdrWideType *p_bAddr, unsigned int p_kBlocks) {
 		#pragma HLS DATAFLOW
 			DdrWideStreamType l_bS;
 			#pragma HLS DATA_PACK variable=l_bS
@@ -129,19 +239,23 @@ class Pca {
 			#pragma HLS STREAM variable=l_normBs depth=4	
 
 			m_Spmv.loadB2Stream(p_bAddr, l_bS, p_kBlocks);
-			normZeroOutB(l_bS, l_normBs, p_kBlocks, p_TopK);
+			normZeroOutB(l_bS, l_normBs, p_kBlocks);
 			m_Spmv.storeBFromStream(l_normBs, p_kBlocks);
 		}
 
 		void
-		storeCandCalcNorm(DdrWideType *p_cAddr, unsigned int p_mgdBlocks) {
+		storeCandCalcNorm(DdrWideType *p_cAddr, unsigned int p_mgdBlocks, unsigned int p_TopK, bool p_isFirstCall) {
 		#pragma HLS DATAFLOW
 			DdrWideStreamType l_cS;
 			#pragma HLS DATA_PACK variable=l_cS
 			#pragma HLS STREAM variable=l_cS depth=4
+			DdrWideStreamType l_cZeroOutS;
+			#pragma HLS DATA_PACK variable=l_cZeroOutS
+			#pragma HLS STREAM variable=l_cZeroOutS depth=4
 
 			m_Spmv.storeCandStreaming(p_cAddr, l_cS, p_mgdBlocks);
-			calcNormC(l_cS, p_mgdBlocks);
+			calcNormC(l_cS, l_cZeroOutS, p_mgdBlocks);
+			zeroOutK(l_cZeroOutS, p_mgdBlocks, p_TopK, p_isFirstCall);
 		}
 
 		void
@@ -149,11 +263,13 @@ class Pca {
 			DdrWideType *p_DdrRd,
 			DdrWideType *p_DdrWr,
 			PcaArgsType &p_Args,
-			t_FloatType &p_Norm
+			t_FloatType &p_Norm,
+			t_FloatType &p_MinK
 		){
       #pragma HLS inline off
-			t_Debug_runPca && std::cout << "DEBUG: runpca " << "p_Norm = " << std::setw(GEMX_FLOAT_WIDTH) << p_Norm << std::endl;
+
 			m_Norm = p_Norm;
+			m_MinK = p_MinK;
 			// Load entire B into BRAM
 			const unsigned int l_kBlocks = p_Args.m_K / t_DdrWidth;
       assert(l_kBlocks * t_DdrWidth == p_Args.m_K);
@@ -161,7 +277,7 @@ class Pca {
       DdrWideType *l_bAddr = p_DdrRd + p_Args.m_Boffset * DdrWideType::per4k();
 			unsigned int l_topK;
 			l_topK = p_Args.m_TopK;
-      loadNormB(l_bAddr, l_kBlocks, l_topK); // in DDR units
+      loadNormB(l_bAddr, l_kBlocks); // in DDR units
 
 			// Load C block descriptors
 			const unsigned int l_Cblocks = p_Args.m_Cblocks;
@@ -193,10 +309,15 @@ class Pca {
 				m_Spmv.multA(l_aAddr, l_numWordsA);
 
 				// Store C
-				storeCandCalcNorm(l_cAddr, l_mgdBlocks);
+				bool l_isFirstCall = (l_Cblock == 0);
+				storeCandCalcNorm(l_cAddr, l_mgdBlocks, l_topK, l_isFirstCall);
 			}
 			p_Norm = hls::sqrtf(m_Norm);
-			t_Debug_runPca && std::cout << "DEBUG: runPca " << "p_Norm = " << std::setw(GEMX_FLOAT_WIDTH) << p_Norm << std::endl;
+			p_MinK = m_MinK;
+			if (t_Debug_runPca) {
+				std::cout << "DEBUG:runPca " << "p_Norm = " << std::setw(GEMX_FLOAT_WIDTH) << p_Norm << std::endl;
+				std::cout << "DEBUG:runPca " << "p_Mink = " << std::setw(GEMX_FLOAT_WIDTH) << p_MinK << std::endl;
+			}
 		}
 };
 }
