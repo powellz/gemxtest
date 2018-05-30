@@ -14,11 +14,11 @@ HWEMUGUI = 0
 #DSA_PATH=/proj/xbuilds/2017.2_sdx_released/installs/lin64/SDx/2017.2/platforms
 DSA_PATH=${XILINX_SDX}/platforms
 GCC_PATH=${XILINX_VIVADO}/tps/lnx64
-BOOST_SRC=${PWD}/../boost/src
+BOOST_SRC=${PWD}/../boost/
 BOOST_LIB=${PWD}/../boost/lib
 
 ifeq ("$(wildcard $(BOOST_SRC))","")
-  BOOST_SRC=${PWD}/boost/src
+  BOOST_SRC=${PWD}/boost/
   BOOST_LIB=${PWD}/boost/lib
 endif
 
