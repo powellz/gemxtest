@@ -395,7 +395,10 @@ class SpMat
         Tddr l_d = 17;
         unsigned int row = 0, col = 0;
         unsigned int numCols =  nnz() / rows();
-        assert(numCols > 0);
+        if(numCols == 0){
+          numCols = 2;
+        }
+        //assert(numCols > 0);
         unsigned int colStep = cols() / numCols - 1;
         assert(colStep > 0);
         for (unsigned int i = 0; i < m_Nnz; ++i) {
@@ -881,7 +884,10 @@ SpMatType_ForFloat::fillMod(float p_Max) {
   float l_d = 17;
   unsigned int row = 0, col = 0;
   unsigned int numCols =  nnz() / rows();
-  assert(numCols > 0);
+  if(numCols == 0){
+    numCols = 2;
+  }
+  //assert(numCols > 0);
   unsigned int colStep = cols() / numCols - 1;
   assert(colStep > 0);
   for (unsigned int i = 0; i < m_Nnz; ++i) {
@@ -1485,7 +1491,10 @@ class SpMatUram
         Tdata l_d = 17;
         unsigned int row = 0, col = 0;
         unsigned int numCols =  nnz() / rows();
-        assert(numCols > 0);
+        if(numCols == 0){
+         numCols = 2;
+        }
+        //assert(numCols > 0);
         unsigned int colStep = cols() / numCols - 1;
         assert(colStep > 0);
         for (unsigned int i = 0; i < m_Nnz; ++i) {
@@ -1865,7 +1874,10 @@ SpMatType_ForFloat::fillMod(float p_Max) {
   float l_d = 17;
   unsigned int row = 0, col = 0;
   unsigned int numCols =  nnz() / rows();
-  assert(numCols > 0);
+  if(numCols == 0){
+    numCols = 2;
+  }
+  //assert(numCols > 0);
   unsigned int colStep = cols() / numCols - 1;
   assert(colStep > 0);
   for (unsigned int i = 0; i < m_Nnz; ++i) {
