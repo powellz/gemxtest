@@ -49,6 +49,8 @@ class GEMXManager:
     self._lib.GetFromFPGAFloat.argtypes = [np.ctypeslib.ndpointer(c_float, flags="C_CONTIGUOUS"), c_uint, c_bool]
     self._lib.GetFromFPGAFloat.restype = c_void_p
     self._lib.Wait.argtypes = [c_uint]
+    self._lib.ClearInstrBuf.argtypes = [c_uint]
+    
     self._lib.PrintStats.argtypes = []    
     self._lib.GetFreq.argtypes = []  
         
@@ -81,6 +83,9 @@ class GEMXManager:
     
   def wait(self, PE):
     self._lib.Wait(PE)    
+    
+  def clearInstrBuf(self, PE):
+    self._lib.ClearInstrBuf(PE)      
           
   def sendMat ( self, A, PE, sync_send = False):
     if A.flags['C_CONTIGUOUS'] == False:
@@ -141,10 +146,14 @@ def addSPMVOp( A,B,C,nnz,PE=0):
     
 def execute(PE=0, sync_exec = True):
     _gemxManager.execute( PE, sync_exec)
+    #_gemxManager.clearInstrBuf(PE)
     
 def wait(PE=0):
     _gemxManager.wait(PE)    
-    
+
+def clearInstrBuf(PE=0):
+    _gemxManager.clearInstrBuf(PE)    
+      
 def createManager ( libFile ):
   global _gemxManager
   if not _gemxManager:

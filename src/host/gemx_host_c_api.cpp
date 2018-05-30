@@ -7,6 +7,7 @@
 #include "xhost.h"
 #include "gemx_util.h"
 #include "gemx_host_c_api.h"
+
 //#define GEMX_PERF_DBG
 using namespace gemx;
 using namespace std;
@@ -41,7 +42,8 @@ protected:
 
 
 template<typename T>
-static void print(char *name,T * A, int m, int n){
+static void print(char *name,T * A, int m, int n)
+{
     ofstream myfile;
     string fName = name;
     fName += ".c";
@@ -58,12 +60,12 @@ static void print(char *name,T * A, int m, int n){
 
 void MakeFCNHost(char *xclbin, char * device, unsigned int nPE)
 {
-	vector<unsigned> ddr = GEMMHost<short*>::getDDRBankFlags(device);
-	for (unsigned i = 0; i < nPE; i++)
-	{
-		string kName = GEMMHost<short*>::getKernelName(i);
-		GEMXHostHandle<void*>::Instance().gh_ptr.push_back(shared_ptr< gemx::GEMMHost<void*> > (new gemx::FCNHost<void*>(xclbin, kName, ddr[i], device) ));
-	}
+    vector<unsigned> ddr = GEMMHost<short*>::getDDRBankFlags(device);
+    for (unsigned i = 0; i < nPE; i++)
+    {
+        string kName = GEMMHost<short*>::getKernelName(i);
+        GEMXHostHandle<void*>::Instance().gh_ptr.push_back(shared_ptr< gemx::GEMMHost<void*> > (new gemx::FCNHost<void*>(xclbin, kName, ddr[i], device) ));
+    }
 }
 
 void MakeGEMMHost(char *xclbin, char * device, unsigned int nPE)
@@ -89,6 +91,7 @@ void MakeSPMVHost(char *xclbin, char * device, unsigned int nPE) {
 void SendToFPGAShrt(short *A, unsigned long long num_elem, unsigned PE, bool sync_send)
 {
     gemx::XTimer t;
+
     GEMXHostHandle<void*>::Instance().gh_ptr[PE]->SendToFPGA(A, A, sizeof(short) *num_elem, sync_send);
     //SendToFPGA( A, sizeof(short) * num_elem, sync_send);
 #ifdef GEMX_PERF_DBG
@@ -231,6 +234,16 @@ void Wait (unsigned PE)
 #ifdef GEMX_PERF_DBG
     GEMXHostProfiler::Instance().func_time["Wait"] += t.elapsed();
     GEMXHostProfiler::Instance().func_calls["Wait"]++;
+#endif
+}
+
+void ClearInstrBuf(unsigned PE)
+{
+    gemx::XTimer t;
+    GEMXHostHandle<void*>::Instance().gh_ptr[PE]->ClearInstrBuf();
+#ifdef GEMX_PERF_DBG
+    GEMXHostProfiler::Instance().func_time["ClearInstrBuf"] += t.elapsed();
+    GEMXHostProfiler::Instance().func_calls["ClearInstrBuf"]++;
 #endif
 }
 

@@ -18,6 +18,7 @@ void* GetFromFPGA( short *A, unsigned PE, bool sync_get);
 void* GetFromFPGAInt( int *A, unsigned PE, bool sync_get);
 void* GetFromFPGAFloat( float *A, unsigned PE, bool sync_get);
 void Wait (unsigned PE);
+void ClearInstrBuf (unsigned PE);
 void PrintStats();
 bool AddFCNOp( void * A, void * B, void *C, void * bias,  unsigned int m, unsigned int k, unsigned int n, int postScale, int postShift, short PReLUScale, short PReLUAlpha, unsigned PE);
 bool AddGEMMOp( void * A, void * B, void *C, void * bias,  unsigned int m, unsigned int k, unsigned int n, int postScale, int postShift, unsigned PE);
