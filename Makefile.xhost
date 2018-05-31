@@ -16,7 +16,7 @@ GEMX_LIBDIR = -L$(BOOST_LIB) -L$(OPENCL_LIB)
 GEMX_CXXFLAGS = -O3 -std=c++14 -fPIC -Wextra -Wall -Wno-ignored-attributes -Wno-unused-parameter -Wno-unused-variable
 GEMX_LDFLAGS = -fPIC -Wl,-rpath,$(OPENCL_LIB),-rpath,$(BOOST_LIB)
               
-GEMX_LIB = -lxilinxopencl -lz -lstdc++ -lrt -pthread -lboost_thread 
+GEMX_LIB = -lxilinxopencl -lz -lstdc++ -lrt -pthread 
                              
 .PHONY: all
 
