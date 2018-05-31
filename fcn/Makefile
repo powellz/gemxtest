@@ -16,7 +16,7 @@ BOOST_SRC=${PWD}/../../boost
 BOOST_LIB=${PWD}/../../boost/lib
 
 ifeq ("$(wildcard $(BOOST_SRC))","")
-  BOOST_SRC=${PWD}/../boost/src
+  BOOST_SRC=${PWD}/../boost
   BOOST_LIB=${PWD}/../boost/lib
 endif
 
