@@ -1,5 +1,5 @@
-#ifndef __SCHEDULERV2_H__
-#define __SCHEDULERV2_H__
+#ifndef __RT_SCHEDULER_H__
+#define __RT_SCHEDULER_H__
 
 #include <queue>
 #include <mutex>
