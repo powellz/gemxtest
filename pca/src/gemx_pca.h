@@ -60,7 +60,8 @@ class Pca {
 		typedef typename Spmv<t_FloatType, t_FloatEqIntType, t_DdrWidth, t_SpmvWidth, t_kVectorBlocks, t_mVectorBlocks, t_MacGroups, t_ColAddIdxBits, t_NumCblocks, t_FloatPerDesc>::DdrWideStreamType DdrWideStreamType;
 
 	private:
-		static const unsigned int t_MaxTopK=256;
+		static const unsigned int t_MaxTopK=32;
+		static const unsigned int t_NumDdrPerTopK = t_MaxTopK / t_DdrWidth;
 		static const unsigned int t_numDescPerDdr = t_DdrWidth / t_FloatPerDesc;
 		static const unsigned int t_RowsInCblock = t_SpmvWidth * t_MacGroups * t_mVectorBlocks * t_DdrWidth;
 		static const unsigned int t_NumDdrPerSpmv = t_DdrWidth / t_SpmvWidth;
@@ -68,8 +69,10 @@ class Pca {
 		Spmv<t_FloatType, t_FloatEqIntType, t_DdrWidth, t_SpmvWidth, t_kVectorBlocks, t_mVectorBlocks, t_MacGroups, t_ColAddIdxBits, t_NumCblocks, t_FloatPerDesc> m_Spmv;
 		t_FloatType m_Norm;
 		t_FloatType m_MinK;
+		t_FloatType m_SortMem[t_DdrWidth][t_NumDdrPerTopK*t_NumCblocks*t_DdrWidth];
+		
 
-		static const unsigned int t_Debug_runPca = 0;
+		static const unsigned int t_Debug_runPca = 0; 
 		static const unsigned int t_Debug_calcNormC = 0;
 	
 	private:
@@ -120,18 +123,19 @@ class Pca {
 					}
 				}
 				p_outS.write(l_val);
-				//l_totalWord++;
-				//t_Debug_calcNormC && std::cout <<"DEBUG: calcNormC " << "After adding entry " << int(l_totalWord)
-					//		<< " with value " << l_val << "\n"
-						//	<< " l_sum = " << l_sum << std::endl;
 			}
+
+			DdrWideType l_zero(0);
+			for (unsigned int i=0; i<t_MaxTopK; ++i){
+				p_outS.write(l_zero);
+			}
+
 			for (unsigned int i=0; i<t_DdrWidth; ++i) {
 			#pragma HLS PIPELINE
 				if (l_sum[i] != 0) {
 					m_Norm += l_sum[i];
 				}
 			}
-			t_Debug_calcNormC && std::cout <<"DEBUG: calcNormC " << "add l_sum together = " << m_Norm << std::endl;
 		}
 
 		void 
@@ -148,82 +152,129 @@ class Pca {
 				p_leftOut = p_cur;
 				p_cur = p_leftIn;
 			}
-			else {
+			else if (p_leftIn < p_cur) {
 				p_leftOut = p_leftIn;
 			}
 		}
 		
 		void
-		zeroOutK(DdrWideStreamType &p_inS, unsigned int p_mgdBlocks, unsigned int p_TopK, bool p_isFirstCall) {
+		sortTopKunit(DdrWideStreamType &p_inS, unsigned int p_mgdBlocks, unsigned int p_Block) {
 			unsigned int l_blocks = p_mgdBlocks * t_DdrWordsPerBlock;
+									 l_blocks += t_MaxTopK;
 			DdrWideType l_absV;
 			#pragma HLS ARRAY_PARTITION variable=l_absV dim=1 complete
 
-			static WideType<t_FloatType, t_MaxTopK> m_TopKs;
+			WideType<t_FloatType, t_MaxTopK> m_TopKs[t_DdrWidth];
 			#pragma HLS ARRAY_PARTITION variable=m_TopKs dim=1 complete
+			#pragma HLS ARRAY_PARTITION variable=m_TopKs dim=2 complete
 
-			WideType<t_FloatType, t_MaxTopK+1> l_topKs;
+			WideType<t_FloatType, t_MaxTopK+1> l_topKs[t_DdrWidth];
 			#pragma HLS ARRAY_PARTITION variable=l_topKs dim=1 complete
-			
-			if (p_isFirstCall) {
-				for (unsigned int i=0; i<t_MaxTopK; ++i) {
-				#pragma HLS UNROLL
-					m_TopKs[i] = 0;
+			#pragma HLS ARRAY_PARTITION variable=l_topKs dim=2 complete
+			for (unsigned int n=0; n<t_MaxTopK; ++n) {	
+			#pragma HLS PIPELINE
+				for (unsigned int i=0; i<t_DdrWidth; ++i) {
+					(void)m_TopKs[i].shift(0);
+					(void)l_topKs[i].shift(0);
 				}
-			}
-
-			for (unsigned int i=0; i<t_MaxTopK; ++i) {
-			#pragma HLS UNROLL
-				l_topKs[i] = 0;
 			}
 
 			for(unsigned int i=0; i<l_blocks; ++i) {
+			#pragma HLS PIPELINE
 				DdrWideType l_val;
 				p_inS.read(l_val);
-				BoolArr<t_DdrWidth> l_isZero(false);
-				for (unsigned int j=0; j<t_DdrWidth; ++j) {
-				#pragma HLS UNROLL
-					l_isZero[j] = (l_val[j] == 0);
-				}
 				for(unsigned int j=0; j<t_DdrWidth; ++j){
-				#pragma HLS UNROLL
 					l_absV[j] = (l_val[j] < 0)? -l_val[j]: l_val[j];
 				}
 			
-				unsigned int l_id=0;
-				if (!l_isZero.Or()) {
-					LOOP_ZEROOUTK_SORT:for (unsigned int n=0; n<t_DdrWidth; ++n) {
-						t_FloatType l_cmpVal = l_absV[0];
-						l_topKs[0] = l_absV[0];
+				LOOP_ZEROOUTK_SORT:for (unsigned int n=0; n<t_DdrWidth; ++n) {
+					l_topKs[n][0] = l_absV[n];
+					for (unsigned int k=0; k<t_MaxTopK; ++k) {
+						cmpStep(l_topKs[n][k], m_TopKs[n][k], l_topKs[n][k+1]);
+					}
+				}	
+			}
 
-						if (l_cmpVal > m_TopKs[p_TopK-1]){
-							for (unsigned int k=0; k<t_MaxTopK; ++k) {
-							#pragma HLS UNROLL
-								cmpStep(l_topKs[k], m_TopKs[k], l_topKs[k+1]);
+			//output partially sorted TopK
+			for (unsigned int i=0; i< t_DdrWidth; ++i) {
+				for (unsigned int j=0; j<t_NumDdrPerTopK; ++j){
+				#pragma HLS PIPELINE
+					DdrWideType l_val;
+					unsigned int l_offset = p_Block * t_DdrWidth * t_NumDdrPerTopK + i*t_NumDdrPerTopK +j;
+					for (unsigned int k=0; k<t_DdrWidth; ++k) {
+						m_SortMem[k][l_offset] = m_TopKs[i][j*t_DdrWidth+k];
+					}
+				}
+			}
+		}
+
+		void
+		getMinK(unsigned int p_Blocks, unsigned int p_TopK) {
+			WideType<t_FloatType, t_MaxTopK> l_topKs;
+			WideType<t_FloatType, t_MaxTopK+1> l_helpKs(0);
+			#pragma HLS ARRAY_PARTITION variable=l_topKs dim=1 complete
+			#pragma HLS ARRAY_PARTITION variable=l_helpKs dim=1 complete
+
+				if (t_Debug_runPca) {
+					for (unsigned int i=0; i<p_Blocks; ++i) {
+						for (unsigned int j=0; j<t_DdrWidth; ++j) {
+							for (unsigned int k=0; k<p_TopK; ++k) {
+								unsigned int bank = (i*t_DdrWidth*t_MaxTopK+j*t_MaxTopK+k) % t_DdrWidth;
+								unsigned int offset = (i*t_DdrWidth*t_MaxTopK+j*t_MaxTopK+k) / t_DdrWidth;
+								std::cout << "DEBUG:runPca " << "l_topKs["<<i<<"]["<<j<< "][" <<k << "]=" << std::setw(GEMX_FLOAT_WIDTH) << m_SortMem[bank][offset] << std::endl;
 							}
 						}
-						(void)l_absV.unshift();
-					}	
+					}
+				}
+			//init l_topKs
+			for (unsigned int i=0; i<t_NumDdrPerTopK; ++i) {
+				for (unsigned int j=0; j<t_DdrWidth; ++j) {
+					l_topKs[i*t_DdrWidth+j] = m_SortMem[j][i];
 				}
 			}
 
-			//if ((l_topKs[0] > 4.1333) && (m_TopKs[16] < 4.1333)) {
-				//t_Debug_runPca && std::cout << "DEBUG:runPca " << "l_topKs[0] = " << std::setw(GEMX_FLOAT_WIDTH) << l_topKs[0] << "m_TopKs[16] = " << m_TopKs[16] <<  std::endl;
-			//}
+			//sorting
+			unsigned int l_ques=p_Blocks*t_DdrWidth-1;
 
-			//flush out pipeline
-			for (unsigned int n=0; n<t_DdrWidth; ++n) {
-				l_topKs[0] = 0;
+			for (unsigned int i=1; i<=l_ques; ++i) {
+				t_FloatType l_minK = l_topKs[p_TopK-1];
+				unsigned int offset=0;
+				unsigned int bank=0;
+				bool l_exit = false;
+				while (!l_exit) {
+					t_FloatType l_dat=m_SortMem[bank][i*t_NumDdrPerTopK+offset];
+					if ((l_dat < l_minK) && (bank == 0) && (offset == 0)) {
+						l_exit = true;	
+					}
+					else { 
+						if (l_dat > l_minK) {
+							l_helpKs[0] = l_dat;
+							for (unsigned int k=0; k<t_MaxTopK; ++k) {
+							#pragma HLS UNROLL
+								cmpStep(l_helpKs[k], l_topKs[k], l_helpKs[k+1]);
+							}
+						}
+						bank = (bank+1)%t_DdrWidth;
+						offset += (bank+1)/t_DdrWidth;
+						l_exit = (offset == t_NumDdrPerTopK);
+					}
+				}
+				//if (t_Debug_runPca) {
+					//for (unsigned int j=0; j<p_TopK; ++j) {
+						//std::cout << "DEBUG:runPca " << "l_topKs["<<j<< "]=" << std::setw(GEMX_FLOAT_WIDTH) << l_topKs[j] << std::endl;
+					//}
+				//}
+			}
+
+			for (unsigned int i=0; i<p_TopK; ++i) {
 				for (unsigned int k=0; k<t_MaxTopK; ++k) {
-					cmpStep(l_topKs[k], m_TopKs[k], l_topKs[k+1]);
+				#pragma HLS UNROLL
+					cmpStep(l_helpKs[k], l_topKs[k], l_helpKs[k+1]);
 				}
+				l_helpKs[0] = 0;
 			}
-			m_MinK = m_TopKs[p_TopK-1];
-			if (t_Debug_runPca) {
-				for (unsigned int i=0; i<p_TopK; ++i) {
-					std::cout << "DEBUG:runPca " << "m_TopKs[" << i << "]=" << std::setw(GEMX_FLOAT_WIDTH) << m_TopKs[i] << std::endl;
-				}
-			}
+
+			m_MinK = l_topKs[p_TopK-1];
 		}
 
 	public:
@@ -244,7 +295,7 @@ class Pca {
 		}
 
 		void
-		storeCandCalcNorm(DdrWideType *p_cAddr, unsigned int p_mgdBlocks, unsigned int p_TopK, bool p_isFirstCall) {
+		storeCandCalcNorm(DdrWideType *p_cAddr, unsigned int p_mgdBlocks, unsigned int p_Block) {
 		#pragma HLS DATAFLOW
 			DdrWideStreamType l_cS;
 			#pragma HLS DATA_PACK variable=l_cS
@@ -255,7 +306,7 @@ class Pca {
 
 			m_Spmv.storeCandStreaming(p_cAddr, l_cS, p_mgdBlocks);
 			calcNormC(l_cS, l_cZeroOutS, p_mgdBlocks);
-			zeroOutK(l_cZeroOutS, p_mgdBlocks, p_TopK, p_isFirstCall);
+			sortTopKunit(l_cZeroOutS, p_mgdBlocks, p_Block);
 		}
 
 		void
@@ -267,6 +318,8 @@ class Pca {
 			t_FloatType &p_MinK
 		){
       #pragma HLS inline off
+			#pragma HLS ARRAY_PARTITION variable=m_SortMem dim=1 complete	
+			assert(t_NumDdrPerTopK * t_DdrWidth == t_MaxTopK);
 
 			m_Norm = p_Norm;
 			m_MinK = p_MinK;
@@ -309,9 +362,9 @@ class Pca {
 				m_Spmv.multA(l_aAddr, l_numWordsA);
 
 				// Store C
-				bool l_isFirstCall = (l_Cblock == 0);
-				storeCandCalcNorm(l_cAddr, l_mgdBlocks, l_topK, l_isFirstCall);
+				storeCandCalcNorm(l_cAddr, l_mgdBlocks, l_Cblock);
 			}
+			getMinK(l_Cblocks, l_topK);
 			p_Norm = hls::sqrtf(m_Norm);
 			p_MinK = m_MinK;
 			if (t_Debug_runPca) {
