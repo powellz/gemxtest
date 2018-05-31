@@ -29,6 +29,7 @@ def test_multiInstrv1(int_range, m, k, n, add_bias=False):
     gemx.addFCNOp(A, B, C, b0, 1, 13, 307, 10)
     gemx.addFCNOp(D, C, E, b1, 1, 18, 307, 10)
     gemx.execute()
+    gemx.clearInstrBuf()
     gemx.getMat(C)
     gemx.getMat(E)
     print("test C")
@@ -54,6 +55,7 @@ def test_perf_fcn(A_range, B_range, bias_range, m, k, n, post_scale):
     gemx.addFCNOp ( mat_A, mat_B, C_fpga, bias, post_scale[0], post_scale[1],1,0)
     timePointKernel.append(time.time()) # send to FPGA
     gemx.execute()
+    gemx.clearInstrBuf()
     timePointKernel.append(time.time()) # call kernel
     gemx.getMat(C_fpga)  
     timePointKernel.append(time.time()) # copy from FPGA
@@ -89,6 +91,7 @@ def test_perf_multi_fcn(ins_count, m_size, k_size, n_size, A_range, B_range, pos
     gemx.addFCNOp (mat_A[3], mat_C[2], mat_C[3], mat_bias[3], post_scale[0], post_scale[1],1,0)
     timePointKernel.append(time.time()) # send to FPGA
     gemx.execute()
+    gemx.clearInstrBuf()
     timePointKernel.append(time.time()) # call kernel
     gemx.getMat(mat_C[0])  
     gemx.getMat(mat_C[1]) 

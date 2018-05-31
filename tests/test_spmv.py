@@ -27,6 +27,7 @@ def common_spmv(row,col,data,m,k,nnz,vector_range):
      gemx.sendMat(C)
      gemx.addSPMVOp(A,B,C,nnz)
      gemx.execute()
+     gemx.clearInstrBuf()
      gemx.getMat(C)
      test.multiply_and_cmp_spmv(row,col,data,m,k,nnz,B,C)
   elif dtype == np.float32:
@@ -38,6 +39,7 @@ def common_spmv(row,col,data,m,k,nnz,vector_range):
      gemx.sendMat(C)
      gemx.addSPMVOp(A,B,C,nnz)
      gemx.execute()
+     gemx.clearInstrBuf()
      gemx.getMat(C)
      test.multiply_and_cmp_spmv(row,col,data,m,k,nnz,B,C)
 

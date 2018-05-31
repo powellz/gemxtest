@@ -111,6 +111,7 @@ class Test:
       gemx.sendMat(bias, PE)
       gemx.addGEMMOp ( mat_A, mat_B, C_fpga, bias, post_scale[0], post_scale[1], PE) # default test_basic will call addGEMMOp
       gemx.execute(PE)
+      gemx.clearInstrBuf(PE)
       gemx.getMat(C_fpga,PE)
       self.multiply_and_cmp(C_fpga, mat_A, mat_B, bias, m, n, post_scale)
    
