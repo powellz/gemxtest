@@ -125,17 +125,18 @@ class Pca {
 				p_outS.write(l_val);
 			}
 
-			DdrWideType l_zero(0);
-			for (unsigned int i=0; i<t_MaxTopK; ++i){
-				p_outS.write(l_zero);
-			}
-
 			for (unsigned int i=0; i<t_DdrWidth; ++i) {
 			#pragma HLS PIPELINE
 				if (l_sum[i] != 0) {
 					m_Norm += l_sum[i];
 				}
 			}
+			
+			DdrWideType l_zero(0);
+			for (unsigned int i=0; i<t_MaxTopK; ++i){
+				p_outS.write(l_zero);
+			}
+
 		}
 
 		void 
@@ -248,9 +249,9 @@ class Pca {
 					}
 					else { 
 						if (l_dat > l_minK) {
+						#pragma HLS PIPELINE
 							l_helpKs[0] = l_dat;
 							for (unsigned int k=0; k<t_MaxTopK; ++k) {
-							#pragma HLS UNROLL
 								cmpStep(l_helpKs[k], l_topKs[k], l_helpKs[k+1]);
 							}
 						}
@@ -267,8 +268,8 @@ class Pca {
 			}
 
 			for (unsigned int i=0; i<p_TopK; ++i) {
+			#pragma HLS PIPELINE
 				for (unsigned int k=0; k<t_MaxTopK; ++k) {
-				#pragma HLS UNROLL
 					cmpStep(l_helpKs[k], l_topKs[k], l_helpKs[k+1]);
 				}
 				l_helpKs[0] = 0;
