@@ -18,15 +18,16 @@
 
 #include "semaphore.h"
 #include "thread_pool.h"
+#include "xhost.h"
 using namespace std;
 
 namespace gemx{
 
-template <typename DType>
-class RunTimeScheduler{
+class XHostScheduler{
 public:
-	RunTimeScheduler(unsigned nthreads)
+	XHostScheduler(const vector<shared_ptr<XHost<void*>>> & host_vec)
 	{
+		unsigned nthreads = host_vec.size();
 	    //_asio_limit = gemx::Semaphore(1000);
 		_tpool = new ThreadPool(nthreads);
 		std::atomic<unsigned int> cnt;
@@ -53,6 +54,10 @@ public:
         cout << "Initialized threads!!!" << endl;
 	    //_cv_arr.resize(nthreads);
 	}
+	virtual ~XHostScheduler()
+	{
+	    delete _tpool;
+	}
 
 	bool empty()
 	{
@@ -60,9 +65,9 @@ public:
         return _results.empty();
 	}
 
-	DType dequeue()
+	void* dequeue()
 	{
-	    std::future<DType> ret;
+	    std::future<void*> ret;
 	    {
             std::lock_guard<std::mutex> guard(_m);
             ret = std::move(_results.front());
@@ -72,41 +77,33 @@ public:
         return ret.get();
 	}
 
-	void enqueue (const DType & d)
+	virtual void enqueue (void * in_ptr, unsigned num_bytes, void* out_ptr)
 	{
-        std::lock_guard<std::mutex> guard(_m);
+        std::lock_guard<std::mutex> guard(this->_m);
 	    //_results.emplace( _tpool->enqueue(f) );
-	    _results.emplace( _tpool->enqueue( &RunTimeScheduler::do_work, _thrIDMap, d ));
-	}
-
-	~RunTimeScheduler()
-	{
-	    delete _tpool;
+	    this->_results.emplace( this->_tpool->enqueue( &XHostScheduler::run, _thrIDMap, in_ptr, num_bytes, out_ptr ));
 	}
 
 protected:
-	static int do_work( const unordered_map<string, unsigned> & threadIDMap, int i )
+	static int run( const unordered_map<string, unsigned> & threadIDMap, void * in_ptr, unsigned num_bytes, void* out_ptr  )
 	{
         string s = gemx::getThreadIdStr();
         //std::cout << "hello " << i << std::endl;
         //std::this_thread::sleep_for(std::chrono::seconds(1));
         //std::cout << "world tid" << n << std::endl;
-        unsigned m = threadIDMap.find(s)->second;
-        cout << "ThreadID: " << m << "Job: " << i << endl;
-        /*
-        std::random_device r;
-        std::default_random_engine e1(r());
-        std::uniform_int_distribution<int> uniform_dist(1,m);
-        int rand = uniform_dist(e1);
-        std::this_thread::sleep_for (std::chrono::milliseconds(rand));
-        */
-        return i;
+        unsigned PE = threadIDMap.find(s)->second;
+		_host_vec[PE]->SendToFPGA(in_ptr, in_ptr, num_bytes, false);
+		_host_vec[PE]->Execute ( true);
+		_host_vec[PE]->GetMat(out_ptr,true, true);
+        return out_ptr;
 	}
 
 	unordered_map<string, unsigned> _thrIDMap;
 	ThreadPool * _tpool;
 	mutex _m;
-	queue< std::future<DType> > _results;
+	queue< std::future<void*> > _results;
+	vector<shared_ptr<XHost<void*>>> _host_vec;
+
 };
 
 }
