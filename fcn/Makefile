@@ -13,11 +13,11 @@ HWEMUGUI = 0
 DSA_PATH=${XILINX_SDX}/platforms
 GCC_PATH=${XILINX_VIVADO}/tps/lnx64
 BOOST_SRC=${PWD}/../../boost
-BOOST_LIB=${PWD}/../../boost/lib
+BOOST_LIB=${PWD}/../../boost/libs
 
 ifeq ("$(wildcard $(BOOST_SRC))","")
   BOOST_SRC=${PWD}/../boost
-  BOOST_LIB=${PWD}/../boost/lib
+  BOOST_LIB=${PWD}/../boost/libs
 endif
 
 
