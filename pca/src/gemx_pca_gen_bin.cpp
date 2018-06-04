@@ -121,7 +121,7 @@ int main(int argc, char** argv)
           unsigned int l_m = atoi(argv[l_argIdx++]);
           unsigned int l_k = atoi(argv[l_argIdx++]);
           unsigned int l_nnz = atoi(argv[l_argIdx++]);
-					unsigned int l_topK = atoi(argv[l_argIdx++]);
+          unsigned int l_topK = atoi(argv[l_argIdx++]);
           std::string l_mtxFileName(argv[l_argIdx++]);
           std::string l_handleA(argv[l_argIdx++]);
           std::string l_handleB(argv[l_argIdx++]);
