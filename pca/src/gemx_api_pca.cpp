@@ -68,6 +68,7 @@ int main(int argc, char **argv)
   unsigned int l_m[l_instrCount], l_k[l_instrCount], l_nnz[l_instrCount], l_topK[l_instrCount];
   std::string l_mtxFileName("none");
   GEMX_dataType l_norm = 0;
+  GEMX_dataType l_minK = 0;
   
   printf("GEMX-pca C++ API example using accelerator image \n",
        l_xclbinFile.c_str());
@@ -90,7 +91,7 @@ int main(int argc, char **argv)
        std::string l_handleA = argv[l_argIdx++];
        std::string l_handleB = argv[l_argIdx++];
        std::string l_handleC = argv[l_argIdx++];
-       l_pca.addInstr(l_program[i], l_norm, l_m[index], l_k[index], l_nnz[index], l_topK[index], l_mtxFile, l_handleA, l_handleB, l_handleC, false);
+       l_pca.addInstr(l_program[i], l_norm, l_minK, l_m[index], l_k[index], l_nnz[index], l_topK[index], l_mtxFile, l_handleA, l_handleB, l_handleC, false);
     }
   }
   std::string kernelNames[GEMX_numKernels];
