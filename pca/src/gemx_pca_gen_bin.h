@@ -383,32 +383,30 @@ class SpMat
     }
     
     void
-    fillMod(Tddr p_Max) {
+    fillMod(Tddr p_Value, Tddr p_Max=std::numeric_limits<GEMX_dataType>::max()) {
         std::vector<MtxRow> l_rows;
-        
-        Tddr l_d = 17;
         unsigned int row = 0, col = 0;
         unsigned int numCols =  nnz() / rows();
-        assert(numCols > 0);
+        if(numCols == 0 || numCols == 1){
+          numCols = 2;
+        }
         unsigned int colStep = cols() / numCols - 1;
-        assert(colStep > 0);
+        assert(colStep > 0); 
         for (unsigned int i = 0; i < m_Nnz; ++i) {
-          l_d++;
-          l_d %= p_Max;
+          p_Value++;
+          p_Value %= p_Max;
           assert(row < rows());
           assert(col < cols());
-          MtxRow l_m(l_d, row, col);
+          MtxRow l_m(p_Value, row, col);
           l_rows.push_back(l_m);
-          //std::cout << "  DEBUG fillMod\n    l_m = " << l_m
-          //          << "\n    l_D = " << l_mD << "\n";
           if (i % numCols == numCols - 1) {
             row++;
             col = 0;
           }
           col += colStep;
-	  if (row >= rows()) {
-	    row--;
-	  }
+          if (row >= rows()) {
+            row--;
+          }
         }
         fillFromVector(l_rows);
       }
@@ -820,26 +818,25 @@ MatType_ForFloat::print(std::ostream& os) {
     }
   }
 
-
 template<>
 void
-SpMatType_ForFloat::fillMod(float p_Max) {
+SpMatType_ForFloat::fillMod(float p_Value, float p_Max) {
   std::vector<MtxRow> l_rows;
-  
-  float l_d = 17;
   unsigned int row = 0, col = 0;
   unsigned int numCols =  nnz() / rows();
-  assert(numCols > 0);
+  if(numCols == 0 || numCols == 1){
+    numCols = 2;
+  }
   unsigned int colStep = cols() / numCols - 1;
   assert(colStep > 0);
   for (unsigned int i = 0; i < m_Nnz; ++i) {
-    l_d += 0.3;
-    if (l_d > p_Max) {
-      l_d -= p_Max;
+    p_Value += 0.3;
+    if (p_Value > p_Max) {
+      p_Value -= p_Max;
     }
     assert(row < rows());
     assert(col < cols());
-    MtxRow l_m(l_d, row, col);
+    MtxRow l_m(p_Value, row, col);
     l_rows.push_back(l_m);
     if (i % numCols == numCols - 1) {
       row++;
@@ -978,22 +975,38 @@ class GenPca
           p_M = p_MtxFile.rows();
           p_K = p_MtxFile.cols();
           p_Nnz = p_MtxFile.nnz();
+          
+        } else {
+          if (p_Nnz % GEMX_spmvWidth != 0) {
+            std::cout << "INFO: spmv  Nnz " << p_Nnz << " must be multiple of GEMX_spmvWidth "
+                      << GEMX_spmvWidth << "\n";
+            while(p_Nnz % GEMX_spmvWidth != 0){
+                std::cout << "INFO: add one to given number of non-zero element\n";
+                p_Nnz++;
+            }
+          }
+          if (p_M % l_mEdge != 0) {
+            std::cout << "INFO: spmv  M dimension " << p_M << " must be multiple of "
+                    << l_mEdge << "\n";
+            while(p_M % l_mEdge != 0){
+                std::cout << "INFO: add one to given m\n";
+                p_M++;
+            }    
+          }
+          if (p_K % l_kEdge != 0) {
+            std::cout << "INFO: spmv  K dimension " << p_K << " must be multiple of "
+                    << l_kEdge << "\n";
+            while(p_K % l_kEdge != 0){
+                std::cout << "INFO: add one to given K\n";
+                p_K++;
+            }
+          }   
         }
         
         if (p_Nnz == 0) {
           std::cerr << "ERROR: spmv  Nnz must be non-0, it is " << p_Nnz << "\n";
           ok = false;
         }
-        if (p_Nnz % GEMX_spmvWidth != 0) {
-          std::cerr << "ERROR: spmv  Nnz " << p_Nnz << " must be multiple of GEMX_spmvWidth "
-                    << GEMX_spmvWidth << "\n";
-          ok = false;
-        }
-        //if (p_Nnz < p_M) {
-        //  std::cerr << "ERROR: spmv  Nnz " << p_Nnz << " must be greater than number of rows M "
-        //            << p_M << "\n";
-        //  ok = false;
-        //}
         if (p_M > l_mMax) {
           std::cerr << "ERROR: spmv  M dimension " << p_M << " is larger than max supported " << l_mMax
                     << "   Recompile the kernel with larger GEMX_spmvmVectorBlocks\n";
@@ -1003,17 +1016,7 @@ class GenPca
           std::cerr << "ERROR: spmv  K dimension " << p_K << " is larger than max supported " << l_kMax
                     << "  Recompile the kernel with larger GEMX_spmvkVectorBlocks\n";
           ok = false;
-        }        
-        if (p_M % l_mEdge != 0) {
-          std::cerr << "ERROR: spmv  M dimension " << p_M << " must be multiple of "
-                    << l_mEdge << "\n";
-          ok = false;
-        }
-        if (p_K % (l_kEdge) != 0) {
-          std::cerr << "ERROR: spmv  K dimension " << p_K << " must be multiple of "
-                    << l_kEdge << "\n";
-          ok = false;
-        }        
+        }             
         return(ok);
       }
 
@@ -1074,7 +1077,7 @@ class GenPca
       if (p_MtxFile.good()) {
         l_matA.fillFromVector(p_MtxFile.getRows());
       } else {
-        l_matA.fillMod(std::numeric_limits<GEMX_dataType>::max());
+        l_matA.fillMod(17);
       }
     }
     if (l_newAllocB) {

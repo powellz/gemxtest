@@ -192,17 +192,19 @@ int main(int argc, char** argv)
           std::string l_handleA(argv[l_argIdx++]);
           std::string l_handleB(argv[l_argIdx++]);
           std::string l_handleC(argv[l_argIdx++]);
-					#if GEMX_useURAM
+          #if GEMX_useURAM
           MtxFileUram l_mtxFile(l_mtxFileName);
+          // check function will also rewrite l_m, l_k, l_nnz when necessary
           if (!l_spmv.check(l_m, l_k, l_nnz, l_mtxFile)) exit(1);
           l_spmv.addInstr(l_p[wGolden], l_m,  l_k, l_nnz, l_mtxFile,
                           l_handleA, l_handleB, l_handleC, wGolden);
-					#else
+          #else
           MtxFile l_mtxFile(l_mtxFileName);
+          // check function will also rewrite l_m, l_k, l_nnz when necessary
           if (!l_spmv.check(l_m, l_k, l_nnz, l_mtxFile)) exit(1);
           l_spmv.addInstr(l_p[wGolden], l_m,  l_k, l_nnz, l_mtxFile,
                           l_handleA, l_handleB, l_handleC, wGolden);
-					#endif
+          #endif
        } else {
          std::cerr << "ERROR: unknow op \"" << l_opName << "\"\n";
        }
