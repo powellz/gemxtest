@@ -122,8 +122,8 @@ if __name__ == '__main__':
       test_perf_fcn(32764,32764,32764,size,size,size,[1,0]) # run performance measurement
       size =  size * 2
       
-  m_size=np.array([512,512,2048,128])
-  k_size=np.array([384,512,512,2048])
-  n_size=np.array([32,32,32,32])   
-  test_perf_multi_fcn(4, m_size, k_size, n_size, 32764, 32764, [1,0]) # run performance measurement
-  gemx.printStats()  
+  #m_size=np.array([512,512,2048,128])
+  #k_size=np.array([384,512,512,2048])
+  #n_size=np.array([32,32,32,32])   
+  #test_perf_multi_fcn(4, m_size, k_size, n_size, 32764, 32764, [1,0]) # run performance measurement
+  #gemx.printStats()  
