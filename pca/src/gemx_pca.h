@@ -222,7 +222,7 @@ class Pca {
 							for (unsigned int k=0; k<p_TopK; ++k) {
 								unsigned int bank = (i*t_DdrWidth*t_MaxTopK+j*t_MaxTopK+k) % t_DdrWidth;
 								unsigned int offset = (i*t_DdrWidth*t_MaxTopK+j*t_MaxTopK+k) / t_DdrWidth;
-								std::cout << "DEBUG:runPca " << "l_topKs["<<i<<"]["<<j<< "][" <<k << "]=" << std::setw(GEMX_FLOAT_WIDTH) << m_SortMem[bank][offset] << std::endl;
+								//std::cout << "DEBUG:runPca " << "l_topKs["<<i<<"]["<<j<< "][" <<k << "]=" << std::setw(GEMX_FLOAT_WIDTH) << m_SortMem[bank][offset] << std::endl;
 							}
 						}
 					}
@@ -369,8 +369,8 @@ class Pca {
 			p_Norm = hls::sqrtf(m_Norm);
 			p_MinK = m_MinK;
 			if (t_Debug_runPca) {
-				std::cout << "DEBUG:runPca " << "p_Norm = " << std::setw(GEMX_FLOAT_WIDTH) << p_Norm << std::endl;
-				std::cout << "DEBUG:runPca " << "p_Mink = " << std::setw(GEMX_FLOAT_WIDTH) << p_MinK << std::endl;
+				//std::cout << "DEBUG:runPca " << "p_Norm = " << std::setw(GEMX_FLOAT_WIDTH) << p_Norm << std::endl;
+				//std::cout << "DEBUG:runPca " << "p_Mink = " << std::setw(GEMX_FLOAT_WIDTH) << p_MinK << std::endl;
 			}
 		}
 };
