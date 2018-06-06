@@ -1880,7 +1880,6 @@ SpMatType_ForFloat::fillMod(float p_Value, float p_Max) {
     assert(row < rows());
     assert(col < cols());
     MtxRow l_m(p_Value, row, col);
-    std::cout<<"Debug: p_Value: "<<p_Value<<" row"<<row<<" col"<<col<<"\n";
     l_rows.push_back(l_m);
     if (i % numCols == numCols - 1) {
       row++;
@@ -1888,7 +1887,6 @@ SpMatType_ForFloat::fillMod(float p_Value, float p_Max) {
     }
     col += colStep;
     if (row >= rows()) {
-      std::cout<<"Debug: I am here\n";
       row --;
     }
   }
