@@ -140,12 +140,31 @@ class Test:
       elif n_size%(n_block*ddr_width) !=0:
          print ("n must be multiple of", n_block, "and", ddr_width)  
          sys.exit()
-        
+         
+  def test_textfiles(self, path_to_a, path_to_b, path_to_bias, post_scale):        
+      mat_A = np.loadtxt(path_to_a, dtype=np.int16)
+      mat_B = np.loadtxt(path_to_b, dtype=np.int16)
+      bias = np.loadtxt(path_to_bias, dtype=np.int32)
+      m = mat_A.shape[0]
+      k = mat_A.shape[1]
+      n = mat_B.shape[1]
+      C_fpga = np.zeros((m, n), dtype=np.int16, order='C')
+      gemx.sendMat(mat_A)
+      gemx.sendMat(mat_B)
+      gemx.sendMat(C_fpga)    
+      gemx.sendMat(bias)
+      gemx.addGEMMOp (mat_A, mat_B, C_fpga, bias, post_scale[0], post_scale[1])
+      gemx.execute()
+      gemx.clearInstrBuf()
+      gemx.getMat(C_fpga)  
+      self.multiply_and_cmp(C_fpga, mat_A, mat_B, bias, m, n, post_scale)
+      
 class FcnTest(Test):       
   def test_basic(self,PE, mat_A, mat_B, bias, post_scale=[1, 1]):
       m = mat_A.shape[0]
       k = mat_A.shape[1]
       n = mat_B.shape[1]
+      print ("test Fcn")
       print ("test_basic: %d %d %d %d %d" % (m, k, n, post_scale[0], post_scale[1])) 
       print ("A: ", np.amax(mat_A), np.amin(mat_A), np.average(mat_A))
       print ("B: ", np.amax(mat_B), np.amin(mat_B), np.average(mat_B))
@@ -157,7 +176,26 @@ class FcnTest(Test):
       gemx.sendMat(bias, PE)
       gemx.addFCNOp (mat_A, mat_B, C_fpga, bias, post_scale[0], post_scale[1], 1, 0, PE)
       gemx.execute(PE)
+      gemx.clearInstrBuf(PE)
       gemx.getMat(C_fpga, PE)  
+      self.multiply_and_cmp(C_fpga, mat_A, mat_B, bias, m, n, post_scale)
+      
+  def test_textfiles(self, path_to_a, path_to_b, path_to_bias,post_scale):        
+      mat_A = np.loadtxt(path_to_a, dtype=np.int16)
+      mat_B = np.loadtxt(path_to_b, dtype=np.int16)
+      bias = np.loadtxt(path_to_bias, dtype=np.int32)
+      m = mat_A.shape[0]
+      k = mat_A.shape[1]
+      n = mat_B.shape[1]
+      C_fpga = np.zeros((m, n), dtype=np.int16, order='C')
+      gemx.sendMat(mat_A)
+      gemx.sendMat(mat_B)
+      gemx.sendMat(C_fpga)    
+      gemx.sendMat(bias)
+      gemx.addFCNOp (mat_A, mat_B, C_fpga, bias, post_scale[0], post_scale[1], 1, 0)
+      gemx.execute()
+      gemx.clearInstrBuf()
+      gemx.getMat(C_fpga)  
       self.multiply_and_cmp(C_fpga, mat_A, mat_B, bias, m, n, post_scale)
         
 class SpmvTest(Test):
