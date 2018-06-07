@@ -229,6 +229,7 @@ class Pca {
 				}
 			//init l_topKs
 			for (unsigned int i=0; i<t_NumDdrPerTopK; ++i) {
+			#pragma HLS PIPELINE
 				for (unsigned int j=0; j<t_DdrWidth; ++j) {
 					l_topKs[i*t_DdrWidth+j] = m_SortMem[j][i];
 				}
@@ -248,13 +249,13 @@ class Pca {
 						l_exit = true;	
 					}
 					else { 
-						if (l_dat > l_minK) {
-						#pragma HLS PIPELINE
+						//if (l_dat > l_minK) {
+							#pragma HLS PIPELINE
 							l_helpKs[0] = l_dat;
 							for (unsigned int k=0; k<t_MaxTopK; ++k) {
 								cmpStep(l_helpKs[k], l_topKs[k], l_helpKs[k+1]);
 							}
-						}
+						//}
 						bank = (bank+1)%t_DdrWidth;
 						offset += (bank+1)/t_DdrWidth;
 						l_exit = (offset == t_NumDdrPerTopK);
