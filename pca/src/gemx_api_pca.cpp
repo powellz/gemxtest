@@ -171,8 +171,8 @@ int main(int argc, char **argv)
   unsigned long int l_total_Ops = 0;
   unsigned long int l_total_theory_cycles = 0;
   for(int j=0;j<l_instrCount;++j){
-    l_total_Ops += 2ull * l_nnz[j] + 2 * l_m[j];
-    l_total_theory_cycles += 2 * l_m[j] / 16 + l_k[j] / 16 + l_nnz[j] / 8 + 2 * l_m[j] / 16;
+    l_total_Ops += 2ull * l_nnz[j] + 4 * l_m[j];
+    l_total_theory_cycles += 2 * l_m[j] / 16 + l_k[j] / 16 + l_nnz[j] / 8 + 4 * l_m[j] / 16;
   }
   double l_effCycles;
   KargsType l_kargsRes[GEMX_numKernels];
