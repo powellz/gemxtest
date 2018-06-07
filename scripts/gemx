@@ -115,7 +115,7 @@ validate() {
 
 	return $rc
 }
-
+export PYTHONPATH=/opt/gemx/src/python
 export LD_LIBRARY_PATH=/opt/boost/lib:/opt/sdx_runtime/runtime/lib/x86_64:/opt/sdx_runtime/opencv:$LD_LIBRARY_PATH
 export XILINX_OPENCL=/opt/sdx_runtime
 
