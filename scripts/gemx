@@ -58,7 +58,7 @@ if [ -n "$1" ]; then
 		;;
 	"gemm_test_python")
 		echo "** Running gemm functionality tests with Python function calls"
-		PROGRAM="python /opt/gemx/tests/test_gemm.py --xclbin /opt/gemx/xclbins/gemm_perf_vcu1525.xclbin --gemxlib /opt/gemx/out_host/lib/libgemxhost.so --cfg /opt/gemx/xclbins/gemm_python_cfg.dat"
+		PROGRAM="python /opt/gemx/tests/test_gemm_nimbix.py --xclbin /opt/gemx/xclbins/gemm_perf_vcu1525.xclbin --gemxlib /opt/gemx/out_host/lib/libgemxhost.so --cfg /opt/gemx/xclbins/gemm_python_cfg.dat"
 		;;
 	*)
 		break
