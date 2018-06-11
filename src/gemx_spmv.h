@@ -440,11 +440,11 @@ class Spmv
             t_Debug_colUnit && std::cout << "DEBUG: colUnit " << t_BankId << " read     " << l_val << "\n" << std::flush;
             unsigned int l_colOffset = l_val.getColOffset();
             t_FloatType l_valB = m_B[t_BankId][l_colOffset];
-						t_FloatType l_valA_reg = reg(l_val.getA());
-						t_FloatType l_valB_reg = reg(l_valB);
-						unsigned int l_row_reg = reg(l_val.getRow());
-            //SpmvABType l_valOut(l_val.getA(), l_valB, l_val.getRow());
-            SpmvABType l_valOut(l_valA_reg, l_valB_reg, l_row_reg);
+						//t_FloatType l_valA_reg = reg(l_val.getA());
+						//t_FloatType l_valB_reg = reg(l_valB);
+						//unsigned int l_row_reg = reg(l_val.getRow());
+            SpmvABType l_valOut(l_val.getA(), l_valB, l_val.getRow());
+            //SpmvABType l_valOut(l_valA_reg, l_valB_reg, l_row_reg);
             t_Debug_colUnit && std::cout << "DEBUG: colUnit " << t_BankId << " computed " << l_valOut << "\n" << std::flush;
             p_Sout.write(l_valOut);
           } else {
