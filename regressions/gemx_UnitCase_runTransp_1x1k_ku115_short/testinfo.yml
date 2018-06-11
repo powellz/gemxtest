@@ -3,6 +3,7 @@ level: 7
 owner: yifei
 platforms: [lnx64]
 products: [sdx]
+disabled: 1
 tasks:
   software: {command: run.sh, cpu_cores: 4, level: 7, memory: 16}
   board:

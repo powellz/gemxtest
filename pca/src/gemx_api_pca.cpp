@@ -194,15 +194,15 @@ int main(int argc, char **argv)
   //for (int i=0; i<GEMX_numKernels; ++i) {
         //l_cycleCount[i] = 0;
     for(int j=0;j<l_instrCount;++j){ //number of instructions
-            l_op[j] = l_kargsRes[0].load(l_program[0].getBaseResAddr(), j * l_kargsRes[0].getInstrWidth());
-            //l_op[i*2+j] = l_kargsRes[i].load(l_program[i].getBaseResAddr(), j);
-            assert(l_op[j] == KargsType::OpResult);
-            l_instrRes[j] = l_kargsRes[0].getInstrResArgs();
-            l_cycleCount[j] = l_instrRes[j].getDuration();
-            std::cout << std::string("cycles in kernel ") << l_cycleCount[j] <<std::endl;
-	            //l_maxCycleCount = (l_cycleCount[i] > l_maxCycleCount)? l_cycleCount[i]: l_maxCycleCount;
+        l_op[j] = l_kargsRes[0].load(l_program[0].getBaseResAddr(), j * l_kargsRes[0].getInstrWidth());
+        //l_op[i*2+j] = l_kargsRes[i].load(l_program[i].getBaseResAddr(), j);
+        assert(l_op[j] == KargsType::OpResult);
+        l_instrRes[j] = l_kargsRes[0].getInstrResArgs();
+        l_cycleCount[j] = l_instrRes[j].getDuration();
+        //std::cout << std::string("cycles in kernel ") << l_cycleCount[j] <<std::endl;
+        //l_maxCycleCount = (l_cycleCount[i] > l_maxCycleCount)? l_cycleCount[i]: l_maxCycleCount;
         l_timeKernelInMs[j] = l_cycleCount[j] / (l_boardFreqMHz * 1e6) * 1e3;
-        l_maxTimeKernelInMs = (l_timeKernelInMs[j] > l_maxTimeKernelInMs)? l_timeKernelInMs[j]: l_maxTimeKernelInMs;
+        //l_maxTimeKernelInMs = (l_timeKernelInMs[j] > l_maxTimeKernelInMs)? l_timeKernelInMs[j]: l_maxTimeKernelInMs;
         l_perfKernelInGops[j] = l_total_Ops[j] / (l_timeKernelInMs[j] * 1e-3) / 1e9;
         //l_totalPerfKernelInGops += l_perfKernelInGops[j];
     }
