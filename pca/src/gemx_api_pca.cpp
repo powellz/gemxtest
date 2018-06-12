@@ -168,22 +168,24 @@ int main(int argc, char **argv)
   //unsigned long int l_Ops = 2ull * l_NNZ;
   //unsigned long int theory_cycles = 2 * l_M / 16 + l_K / 16 + l_NNZ / 8;
   
-  unsigned long int l_total_Ops[l_instrCount];
+  unsigned long int l_total_Op[l_instrCount];
+  unsigned long int l_total_Ops = 0;
   unsigned long int l_total_theory_cycle[l_instrCount];
   unsigned long int l_total_theory_cycles = 0;
   for(int j=0;j<l_instrCount;++j){
-    l_total_Ops[j] = 2ull * l_nnz[j] + 4 * l_m[j];
+    l_total_Op[j] = 2ull * l_nnz[j] + 4 * l_m[j];
+    l_total_Ops += 2ull * l_nnz[j] + 4 * l_m[j];
     l_total_theory_cycle[j] = 2 * l_m[j] / 16 + l_k[j] / 16 + l_nnz[j] / 8 + 4 * l_m[j] / 16;
     l_total_theory_cycles += 2 * l_m[j] / 16 + l_k[j] / 16 + l_nnz[j] / 8 + 4 * l_m[j] / 16;
   }
   double l_effCycles;
   KargsType l_kargsRes[GEMX_numKernels];
-  KargsOpType l_op[l_instrCount];
-  gemx::InstrResArgs l_instrRes[l_instrCount];
-  unsigned long int l_cycleCount[l_instrCount];
-  unsigned long int l_maxCycleCount=0;
-  double l_timeKernelInMs[l_instrCount];
-  double l_maxTimeKernelInMs=0;
+  KargsOpType l_op;
+  gemx::InstrResArgs l_instrRes;
+  unsigned long int l_cycleCount;
+  unsigned long int l_maxCycleCount[l_instrCount] = {0};
+  double l_timeKernelInMs;
+  double l_maxTimeKernelInMs[l_instrCount] = {0};
   double l_perfKernelInGops[l_instrCount];
   double l_totalPerfKernelInGops=0;
   double l_perfApiInGops;
@@ -191,40 +193,38 @@ int main(int argc, char **argv)
   //double l_effKernelPct;
   double l_effApiPct;
   
-  //for (int i=0; i<GEMX_numKernels; ++i) {
-        //l_cycleCount[i] = 0;
+  for (int i=0; i<GEMX_numKernels; ++i) {
     for(int j=0;j<l_instrCount;++j){ //number of instructions
-        l_op[j] = l_kargsRes[0].load(l_program[0].getBaseResAddr(), j * l_kargsRes[0].getInstrWidth());
+        l_op = l_kargsRes[i].load(l_program[i].getBaseResAddr(), j * l_kargsRes[i].getInstrWidth());
         //l_op[i*2+j] = l_kargsRes[i].load(l_program[i].getBaseResAddr(), j);
-        assert(l_op[j] == KargsType::OpResult);
-        l_instrRes[j] = l_kargsRes[0].getInstrResArgs();
-        l_cycleCount[j] = l_instrRes[j].getDuration();
-        //std::cout << std::string("cycles in kernel ") << l_cycleCount[j] <<std::endl;
-        //l_maxCycleCount = (l_cycleCount[i] > l_maxCycleCount)? l_cycleCount[i]: l_maxCycleCount;
-        l_timeKernelInMs[j] = l_cycleCount[j] / (l_boardFreqMHz * 1e6) * 1e3;
-        //l_maxTimeKernelInMs = (l_timeKernelInMs[j] > l_maxTimeKernelInMs)? l_timeKernelInMs[j]: l_maxTimeKernelInMs;
-        l_perfKernelInGops[j] = l_total_Ops[j] / (l_timeKernelInMs[j] * 1e-3) / 1e9;
+        assert(l_op == KargsType::OpResult);
+        l_instrRes = l_kargsRes[i].getInstrResArgs();
+        l_cycleCount = l_instrRes.getDuration();
+        std::cout << std::string("cycles in kernel ")<< i << " "<<l_cycleCount <<std::endl;        
+        l_maxCycleCount[j] = (l_cycleCount > l_maxCycleCount[j])? l_cycleCount: l_maxCycleCount[j];
+        l_timeKernelInMs = l_maxCycleCount[j] / (l_boardFreqMHz * 1e6) * 1e3;
+        l_maxTimeKernelInMs[j] = (l_timeKernelInMs > l_maxTimeKernelInMs[j])? l_timeKernelInMs: l_maxTimeKernelInMs[j];
+        l_perfKernelInGops[j] = l_total_Op[j] / (l_maxTimeKernelInMs[j] * 1e-3) / 1e9;
         //l_totalPerfKernelInGops += l_perfKernelInGops[j];
     }
-
-  //}
+  }
   std::cout << std::string("DATA_CSV:,DdrWidth,Freq,M,K,NNZ,")
              + "KernelCycles,"
              + "TimeKernelMs,TimeApiMs,"
              + "EffKernelPct,EffApiPct,"
              + "PerfKernelGops,PerfApiGops\n";
   for(int i=0;i<l_instrCount;++i){
-     l_perfApiInGops = (l_total_Ops[i]) / (l_timeApiInMs * 1e-3) / 1e9;
-     l_timeMsAt100pctEff = l_total_theory_cycles / (l_boardFreqMHz * 1e6) * 1e3;
+     l_perfApiInGops = (l_total_Ops*GEMX_numKernels) / (l_timeApiInMs * 1e-3) / 1e9;
+     l_timeMsAt100pctEff = (l_total_theory_cycles*GEMX_numKernels) / (l_boardFreqMHz * 1e6) * 1e3;
   //l_effKernelPct = 100 * l_timeMsAt100pctEff / l_maxTimeKernelInMs;
-     l_effCycles = 100 * l_total_theory_cycle[i] / l_cycleCount[i];
+     l_effCycles = 100 * l_total_theory_cycle[i] / l_maxCycleCount[i];
      l_effApiPct = 100 * l_timeMsAt100pctEff / l_timeApiInMs;
   // Show time, Gops in csv format
 
      std::cout << "DATA_CSV:," <<  GEMX_ddrWidth << "," << l_boardFreqMHz << ","
             << l_m[i]<<","<<l_k[i]<<","<<l_nnz[i] << ","
-            << l_cycleCount[i] << ","
-            << l_timeKernelInMs[i] << "," << l_timeApiInMs << ","
+            << l_maxCycleCount[i] << ","
+            << l_maxTimeKernelInMs[i] << "," << l_timeApiInMs << ","
             << l_effCycles<<","<<l_effApiPct<<","
             << l_perfKernelInGops[i] << "," << l_perfApiInGops
             << std::endl;
