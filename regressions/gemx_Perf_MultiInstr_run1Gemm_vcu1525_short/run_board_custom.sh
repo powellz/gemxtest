@@ -2,9 +2,11 @@
 
 ##################  Performance reporting  ##################
 
+logs_cpp=()
+
 nice out_host/gemx_api_gemm_multiInstr.exe out_hw/gemx.xclbin  512 384 128 384 128 128 128 1 0 A B C Bias0 512 512 128 512 128 128 128 1 0 D C E Bias1 2048 512 128 512 128 128 128 1 0 F E G Bias2  128 2048 128 2048 128 128 128 1 0 H G I Bias3 | tee log-multiInstr.txt
 
-logs_cpp=()
+logs_cpp="$logs_cpp log-multiInstr.txt"
 
 ddrWidth=32
 n=256

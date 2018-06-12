@@ -97,7 +97,7 @@ float getBoardFreqMHz(unsigned int p_BoardId) {
     }
     if (l_freq == -1) {
         //if xbsak does not work, as happens on F1, put the XOCC achieved kernel frequcy here
-        l_freq = 246;
+        l_freq = -1;
         std::cout << "INFO: Failed to get board frequency by xbsak. This is normal for cpu and hw emulation, using -1 MHz for reporting.\n";
     }
     return(l_freq);
@@ -372,63 +372,68 @@ int main(int argc, char **argv)
 
     //############  Get the exact kernel time from HW cycle counters on the accelerator  ############
     float l_boardFreqMHz = getBoardFreqMHz(0);
+    //unsigned long int l_Ops = 2ull * l_m * l_n * l_k * 2; //operations carried out by each kernel
     KargsType l_kargsRes[GEMX_numKernels];
-    KargsOpType l_op[GEMX_numKernels*l_instrCount];
-    gemx::InstrResArgs l_instrRes[GEMX_numKernels*l_instrCount];
-    unsigned long int l_cycleCount[GEMX_numKernels];
-    unsigned long int l_maxCycleCount=0;
-    double l_timeKernelInMs[GEMX_numKernels];
-    double l_maxTimeKernelInMs=0;
-    double l_perfKernelInTops[GEMX_numKernels];
+    KargsOpType l_op;
+    gemx::InstrResArgs l_instrRes;
+    unsigned long int l_cycleCount;
+    unsigned long int l_maxCycleCount[l_instrCount] = {0};
+    double l_timeKernelInMs;
+    double l_maxTimeKernelInMs[l_instrCount] = {0};
+    double l_perfKernelInTops[l_instrCount];
     double l_totalPerfKernelInTops=0;
     double l_perfApiInTops;
     double l_timeMsAt100pctEff;
+    double l_timeMsAt100pctEffKernel;
     double l_effKernelPct;
     double l_effApiPct;
 
+    unsigned long int l_total_Op[l_instrCount];
     unsigned long int l_total_Ops = 0;
+    unsigned long int l_total_parallel_Op[l_instrCount];
     unsigned long int l_total_parallel_Ops = 0;
     for(int j=0;j<l_instrCount;++j){
+      l_total_Op[j] = 2ull * l_m[j] * l_n[j] * l_k[j] + l_m[j] * l_n[j] * 3;
       l_total_Ops += 2ull * l_m[j] * l_n[j] * l_k[j] + l_m[j] * l_n[j] * 3;
+      l_total_parallel_Op[j] = 2ull * l_m[j] * l_k[j] * l_n[j];
       l_total_parallel_Ops += 2ull * l_m[j] * l_k[j] * l_n[j];
     }
 
     for (int i=0; i<GEMX_numKernels; ++i) {
-        l_cycleCount[i] = 0;
         for(int j=0;j<l_instrCount;++j){ //number of instructions
-            l_op[i*l_instrCount+j] = l_kargsRes[i].load(l_program[i].getBaseResAddr(), j * l_kargsRes[i].getInstrWidth());
-            //l_op[i*2+j] = l_kargsRes[i].load(l_program[i].getBaseResAddr(), j);
-            assert(l_op[i*l_instrCount+j] == KargsType::OpResult);
-            l_instrRes[i*l_instrCount+j] = l_kargsRes[i].getInstrResArgs();
-            l_cycleCount[i] += l_instrRes[i*l_instrCount+j].getDuration();
-            std::cout << std::string("cycles in kernel ") <<i<<"  "<< l_instrRes[i*l_instrCount+j].getDuration() <<std::endl;
-        }
-        l_maxCycleCount = (l_cycleCount[i] > l_maxCycleCount)? l_cycleCount[i]: l_maxCycleCount;
-        l_timeKernelInMs[i] = l_cycleCount[i] / (l_boardFreqMHz * 1e6) * 1e3;
-        l_maxTimeKernelInMs = (l_timeKernelInMs[i] > l_maxTimeKernelInMs)? l_timeKernelInMs[i]: l_maxTimeKernelInMs;
-        l_perfKernelInTops[i] = l_total_Ops / (l_timeKernelInMs[i] * 1e-3) / 1e12;
-        l_totalPerfKernelInTops += l_perfKernelInTops[i];
+            l_op = l_kargsRes[i].load(l_program[i].getBaseResAddr(), j * l_kargsRes[i].getInstrWidth());
+            assert(l_op == KargsType::OpResult);
+            l_instrRes = l_kargsRes[i].getInstrResArgs();
+            l_cycleCount = l_instrRes.getDuration();
+            std::cout << std::string("cycles in kernel ")<< i << " "<<l_cycleCount <<std::endl;        
+            l_maxCycleCount[j] = (l_cycleCount > l_maxCycleCount[j])? l_cycleCount: l_maxCycleCount[j];
+            l_timeKernelInMs = l_maxCycleCount[j] / (l_boardFreqMHz * 1e6) * 1e3;
+            l_maxTimeKernelInMs[j] = (l_timeKernelInMs > l_maxTimeKernelInMs[j])? l_timeKernelInMs: l_maxTimeKernelInMs[j];
+            l_perfKernelInTops[j] = l_total_Op[j] / (l_maxTimeKernelInMs[j] * 1e-3) / 1e12;
+            //l_totalPerfKernelInTops += l_perfKernelInTops[i];
+      }
     }
-    l_perfApiInTops = (l_total_Ops*GEMX_numKernels) / (l_timeApiInMs * 1e-3) / 1e12;
-    l_timeMsAt100pctEff = l_total_parallel_Ops / 2 / GEMX_ddrWidth / GEMX_ddrWidth / (l_boardFreqMHz * 1e6) * 1e3;
-    l_effKernelPct = 100 * l_timeMsAt100pctEff / l_maxTimeKernelInMs;
-    l_effApiPct = 100 * l_timeMsAt100pctEff / l_timeApiInMs;
+
     // Show time, Tops in csv format
-    std::cout <<"In each kernel, it ran "<<l_instrCount<<" instructions, size for matrices are: " <<"\n";
-    for(int i=0;i<l_instrCount;++i){
-        std::cout <<"m,k,n: "<<l_m[i]<<","<<l_k[i]<<","<<l_n[i]<<" \n";
-    }
-    std::cout << std::string("DATA_CSV:,DdrWidth,Freq,")
+    std::cout << std::string("DATA_CSV:,DdrWidth,Freq,M,K,N,")
     + "Ops,KernelCycles,"
     + "TimeKernelMs,TimeApiMs,"
     + "EffKernelPct,EffApiPct,"
-    + "PerfKernelTops,PerfApiTops\n"
-    << "DATA_CSV:," <<  GEMX_ddrWidth << "," << l_boardFreqMHz << ","
-    << l_total_Ops*GEMX_numKernels << "," << l_maxCycleCount << ","
-    << l_maxTimeKernelInMs << "," << l_timeApiInMs << ","
-    << l_effKernelPct << "," << l_effApiPct << ","
-    << l_totalPerfKernelInTops << "," << l_perfApiInTops
-    << std::endl;
+    + "PerfKernelTops,PerfApiTops\n";
+    for(int i=0;i<l_instrCount;++i){
+    l_perfApiInTops = (l_total_Ops*GEMX_numKernels) / (l_timeApiInMs * 1e-3) / 1e12;
+    l_timeMsAt100pctEff = (l_total_parallel_Ops*GEMX_numKernels) / 2 / GEMX_ddrWidth / GEMX_ddrWidth / (l_boardFreqMHz * 1e6) * 1e3;
+    l_timeMsAt100pctEffKernel = l_total_parallel_Op[i] / 2 / GEMX_ddrWidth / GEMX_ddrWidth / (l_boardFreqMHz * 1e6) * 1e3;
+    l_effKernelPct = 100 * l_timeMsAt100pctEffKernel / l_maxTimeKernelInMs[i];
+    l_effApiPct = 100 * l_timeMsAt100pctEff / l_timeApiInMs;
+        std::cout << "DATA_CSV:," <<  GEMX_ddrWidth << "," << l_boardFreqMHz << ","
+        << l_m[i]<<","<<l_k[i]<<","<<l_n[i] << ","
+        << l_total_Op[i] << "," << l_maxCycleCount[i] << ","
+        << l_maxTimeKernelInMs[i] << "," << l_timeApiInMs << ","
+        << l_effKernelPct << "," << l_effApiPct << ","
+        << l_perfKernelInTops[i] << "," << l_perfApiInTops
+        << std::endl;
+    }
 
     //############  Compare tha FPGA results with the reference results  ############
     // Calculate reference C = A * B

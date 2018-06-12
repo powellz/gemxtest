@@ -31,6 +31,8 @@ out_host/gemx_gen_bin.exe -compare 1e-3 3e-6  out_host/app-test_gold.bin out_hw/
 #compare with the first line in perf_gemm_api_python.csv
 nice out_host/gemx_api_gemm_multiInstr.exe out_hw/gemx.xclbin  512 384 128 384 128 128 128 1 0 A B C Bias0 512 512 128 512 128 128 128 1 0 D C E Bias1 2048 512 128 512 128 128 128 1 0 F E G Bias2  128 2048 128 2048 128 128 128 1 0 H G I Bias3 | tee log-multiInstr.txt
 
+logs_cpp="$logs_cpp log-multiInstr.txt"
+
 #python test
 export PYTHONPATH=./src/python
 python tests/test_gemm.py --xclbin out_hw/gemx.xclbin --gemxlib out_host/lib/libgemxhost.so --cfg out_hw/config_info.dat | tee log-python.txt
