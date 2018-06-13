@@ -560,6 +560,8 @@ class Mat
   private:
     unsigned int m_Rows, m_Cols, m_Ld; 
     T *m_Addr;
+	private:
+		static const unsigned int t_Debug_host=0;
 	public:
 		Mat()
 		{}
@@ -660,7 +662,7 @@ class Mat
 					if (abs(p_B.getVal(col, 0) >= p_MinK)) {
 						l_tmp1 = p_B.getVal(col,0);
 						if (p_MinK != 0) {
-							std::cout << "DEBUG:Host B[ = " << col << "]=" << std::setw(GEMX_FLOAT_WIDTH) << std::fixed << std::setprecision(6) << l_tmp1 << "\n";
+							t_Debug_host && std::cout << "DEBUG:Host B[ = " << col << "]=" << std::setw(GEMX_FLOAT_WIDTH) << std::fixed << std::setprecision(6) << l_tmp1 << "\n";
 						}
 					}
 					else {
@@ -683,7 +685,7 @@ class Mat
 					T l_val = getVal(i,0);
 					T l_tmp = l_val * l_val;
 					p_Norm += l_tmp;
-         //std::cout << "DEBUG pcaSpmv add entry " << i << " with value " << l_val << " and square " << l_tmp << " =  " << p_Norm << std::endl;
+         	std::cout << "DEBUG pcaSpmv add entry " << i << " with value " << l_val << " and square " << l_tmp << " =  " << p_Norm << std::endl;
         	for (unsigned int j=0; j<p_TopK; ++j) {
 						if (abs(l_val) > l_topKs[j]) {
 							for (unsigned int k=p_TopK-1; k>j; --k){
@@ -696,10 +698,10 @@ class Mat
 				}
 				p_Norm = sqrt(p_Norm);
 				p_MinK = l_topKs[p_TopK-1];
-				std::cout << "DEBUG:Host p_Norm = " << std::setw(GEMX_FLOAT_WIDTH) << std::fixed << std::setprecision(6) << p_Norm << "\n";
-				std::cout << "DEBUG:Host p_MinK = " << std::setw(GEMX_FLOAT_WIDTH) << std::fixed << std::setprecision(6) << p_MinK << "\n";
+				t_Debug_host && std::cout << "DEBUG:Host p_Norm = " << std::setw(GEMX_FLOAT_WIDTH) << std::fixed << std::setprecision(6) << p_Norm << "\n";
+				t_Debug_host && std::cout << "DEBUG:Host p_MinK = " << std::setw(GEMX_FLOAT_WIDTH) << std::fixed << std::setprecision(6) << p_MinK << "\n";
 				for (unsigned int i=0; i<t_MaxTopK; ++i) {
-					std::cout << "DEBUG:Host l_topKs[" <<i<<"]=" << std::setw(GEMX_FLOAT_WIDTH) << std::fixed << std::setprecision(6) << l_topKs[i] << "\n";
+					t_Debug_host && std::cout << "DEBUG:Host l_topKs[" <<i<<"]=" << std::setw(GEMX_FLOAT_WIDTH) << std::fixed << std::setprecision(6) << l_topKs[i] << "\n";
 				}
 				
     }
