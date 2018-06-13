@@ -50,11 +50,11 @@ set GCC_VERSION 6.2.0
 array set opt {
   dataType        short
   dataEqIntType   short
-	XdataType				int32_t
-  ddrWidth     4
-	XddrWidth		 2
-	macBits			 48
-	keepMacBits				0
+  XdataType       int32_t
+  ddrWidth        4
+  XddrWidth       2
+  macBits         48
+  keepMacBits     0
   argInstrWidth   8   
   numInstr       16
   numKernels      1
@@ -65,11 +65,11 @@ array set opt {
   gemvkVectorBlocks 512
   gemvmVectorBlocks 512
   gemvmGroups      1
-  gemmMBlocks	   1
-  gemmKBlocks	   2
-  gemmNBlocks	   1
-  splitMesh		   0 
-  transpBlocks 1
+  gemmMBlocks      1
+  gemmKBlocks      2
+  gemmNBlocks      1
+  splitMesh        0 
+  transpBlocks     1
   spmvWidth            1
   spmvkVectorBlocks  512
   spmvMacGroups        4
@@ -77,12 +77,12 @@ array set opt {
   spmvPadA             1
   spmvNumCblocks    1024
   spmvFloatPerDesc     4
-	idxType 					int	
-	nnzBlocks 				8
-	spmvKmaxBlocks 		512	
-	spmvMmaxBlocks 		512
-	spmvUramGroups		6
-	useURAM					0
+  idxType              int
+  nnzBlocks            8
+  spmvKmaxBlocks       512
+  spmvMmaxBlocks       512
+  spmvUramGroups       6
+  useURAM              0
   argPipeline  2
   part        ku115
   doCsim      0
@@ -108,8 +108,8 @@ foreach o [lsort [array names opt]] {
 }
 #quit
 
-set BOOST_SRC $pwd/../boost/src
-set BOOST_LIB $pwd/../boost/lib
+set BOOST_SRC $pwd/../boost/
+set BOOST_LIB $pwd/../boost/libs
 set CFLAGS_K "-I $pwd/src  $OPT_FLAGS -D GEMX_kernelId=0 "
 set CFLAGS_H "$CFLAGS_K -g -I $BOOST_SRC"
 
