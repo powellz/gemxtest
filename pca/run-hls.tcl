@@ -89,8 +89,8 @@ foreach o [lsort [array names opt]] {
 }
 #quit
 
-set BOOST_SRC $pwd/../../boost/src
-set BOOST_LIB $pwd/../../boost/lib
+set BOOST_SRC $pwd/../../boost/
+set BOOST_LIB $pwd/../../boost/libs
 set CFLAGS_K "-I $pwd/src -I $pwd/../src  $OPT_FLAGS -D GEMX_kernelId=0 "
 set CFLAGS_H "$CFLAGS_K -g -I $BOOST_SRC"
 

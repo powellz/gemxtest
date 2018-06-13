@@ -6,7 +6,9 @@ logs_cpp=()
 
 nice out_host/gemx_api_gemm_multiInstr.exe out_hw/gemx.xclbin  512 384 128 384 128 128 128 1 0 A B C Bias0 512 512 128 512 128 128 128 1 0 D C E Bias1 2048 512 128 512 128 128 128 1 0 F E G Bias2  128 2048 128 2048 128 128 128 1 0 H G I Bias3 | tee log-multiInstr.txt
 
-logs_cpp="$logs_cpp log-multiInstr.txt"
+nice out_host/gemx_api_gemm_multiInstr.exe out_hw/gemx.xclbin  256 256 256 256 256 256 256 1 0 A0 B0 C0 Bias0 512 512 512 512 512 512 512 1 0 A1 B1 C1 Bias1 1024 1024 1024 1024 1024 1024 1024 1 0 A2 B2 C2 Bias2 2048 2048 2048 2048 2048 2048 2048 1 0 A3 B3 C3 Bias3 | tee log-multiInstr2.txt
+
+logs_cpp="$logs_cpp log-multiInstr.txt log-multiInstr2.txt"
 
 ddrWidth=32
 n=256
