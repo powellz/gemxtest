@@ -73,7 +73,6 @@ class Pca {
 		
 
 		static const unsigned int t_Debug_runPca = 0; 
-		static const unsigned int t_Debug_calcNormC = 0;
 	
 	private:
 		void
@@ -89,6 +88,9 @@ class Pca {
 					}
 					else {
 						l_valZeroOut[j] = l_val[j];
+						if (t_Debug_runPca) {
+							(m_MinK !=0) && std::cout << "DEBUG:normZeroOutB B[" <<i*t_DdrWidth+j<<"]="<<l_valZeroOut[j]<<std::endl;
+						}
 					}
 
 					if (m_Norm !=0){
@@ -222,7 +224,7 @@ class Pca {
 							for (unsigned int k=0; k<p_TopK; ++k) {
 								unsigned int bank = (i*t_DdrWidth*t_MaxTopK+j*t_MaxTopK+k) % t_DdrWidth;
 								unsigned int offset = (i*t_DdrWidth*t_MaxTopK+j*t_MaxTopK+k) / t_DdrWidth;
-								//std::cout << "DEBUG:runPca " << "l_topKs["<<i<<"]["<<j<< "][" <<k << "]=" << std::setw(GEMX_FLOAT_WIDTH) << m_SortMem[bank][offset] << std::endl;
+								std::cout << "DEBUG:runPca " << "l_topKs["<<i<<"]["<<j<< "][" <<k << "]=" << std::setw(GEMX_FLOAT_WIDTH) << m_SortMem[bank][offset] << std::endl;
 							}
 						}
 					}
@@ -261,11 +263,11 @@ class Pca {
 						l_exit = (offset == t_NumDdrPerTopK);
 					}
 				}
-				//if (t_Debug_runPca) {
-					//for (unsigned int j=0; j<p_TopK; ++j) {
-						//std::cout << "DEBUG:runPca " << "l_topKs["<<j<< "]=" << std::setw(GEMX_FLOAT_WIDTH) << l_topKs[j] << std::endl;
-					//}
-				//}
+				if (t_Debug_runPca) {
+					for (unsigned int j=0; j<p_TopK; ++j) {
+						std::cout << "DEBUG:runPca " << "l_topKs["<<j<< "]=" << std::setw(GEMX_FLOAT_WIDTH) << l_topKs[j] << std::endl;
+					}
+				}
 			}
 
 			for (unsigned int i=0; i<p_TopK; ++i) {
@@ -370,8 +372,8 @@ class Pca {
 			p_Norm = hls::sqrtf(m_Norm);
 			p_MinK = m_MinK;
 			if (t_Debug_runPca) {
-				//std::cout << "DEBUG:runPca " << "p_Norm = " << std::setw(GEMX_FLOAT_WIDTH) << p_Norm << std::endl;
-				//std::cout << "DEBUG:runPca " << "p_Mink = " << std::setw(GEMX_FLOAT_WIDTH) << p_MinK << std::endl;
+				std::cout << "DEBUG:runPca " << "p_Norm = " << std::setw(GEMX_FLOAT_WIDTH) << p_Norm << std::endl;
+				std::cout << "DEBUG:runPca " << "p_Mink = " << std::setw(GEMX_FLOAT_WIDTH) << p_MinK << std::endl;
 			}
 		}
 };

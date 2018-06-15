@@ -89,7 +89,6 @@ else ifeq (${GEMX_part},ku115)
   PLATFORM_REPO_PATH=$(DSA_PATH)/${DSA_PLATFORM}
   XOPENCL_LIB_PATH=${DSA_PATH}/../runtime/lib/x86_64
 else ifeq (${GEMX_part},vu9pf1)
-  CLCC_OPT += --xp param:compiler.acceleratorBinaryContent="bitstream"
   CLCC_OPT += --xp vivado_param:hd.routingContainmentAreaExpansion=true 
   DSA=5_0
   XDEVICE_COLON=xilinx:aws-vu9p-f1:dynamic:$(subst _,.,${DSA})

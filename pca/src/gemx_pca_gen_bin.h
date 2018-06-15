@@ -659,10 +659,13 @@ class Mat
 					T l_tmp1;
 					T l_tmp2;
 
-					if (abs(p_B.getVal(col, 0) >= p_MinK)) {
+					T l_absB = p_B.getVal(col,0);
+					l_absB = (l_absB < 0)? -l_absB: l_absB;
+
+					if ( l_absB >= p_MinK) {
 						l_tmp1 = p_B.getVal(col,0);
 						if (p_MinK != 0) {
-							t_Debug_host && std::cout << "DEBUG:Host B[ = " << col << "]=" << std::setw(GEMX_FLOAT_WIDTH) << std::fixed << std::setprecision(6) << l_tmp1 << "\n";
+							t_Debug_host && std::cout << "DEBUG:Host B[" << col << "]=" << std::setw(GEMX_FLOAT_WIDTH) << std::fixed << std::setprecision(6) << l_tmp1 << "\n";
 						}
 					}
 					else {
@@ -685,7 +688,7 @@ class Mat
 					T l_val = getVal(i,0);
 					T l_tmp = l_val * l_val;
 					p_Norm += l_tmp;
-         	std::cout << "DEBUG pcaSpmv add entry " << i << " with value " << l_val << " and square " << l_tmp << " =  " << p_Norm << std::endl;
+         	t_Debug_host && std::cout << "DEBUG pcaSpmv add entry " << i << " with value " << l_val << " and square " << l_tmp << " =  " << p_Norm << std::endl;
         	for (unsigned int j=0; j<p_TopK; ++j) {
 						if (abs(l_val) > l_topKs[j]) {
 							for (unsigned int k=p_TopK-1; k>j; --k){
