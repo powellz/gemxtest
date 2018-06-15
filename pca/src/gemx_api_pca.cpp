@@ -66,7 +66,7 @@ int main(int argc, char **argv)
   }
   unsigned int l_ddrW = GEMX_ddrWidth;
   unsigned int l_m[l_instrCount], l_k[l_instrCount], l_nnz[l_instrCount], l_topK[l_instrCount];
-  std::string l_mtxFileName("none");
+  std::string l_mtxFileName[l_instrCount]={"none"};
   GEMX_dataType l_norm = 0;
   GEMX_dataType l_minK = 0;
   
@@ -84,8 +84,8 @@ int main(int argc, char **argv)
        l_k[index] = atoi(argv[l_argIdx++]);
        l_nnz[index] = atoi(argv[l_argIdx++]);
        l_topK[index] = atoi(argv[l_argIdx++]);
-       l_mtxFileName = argv[l_argIdx++];
-       MtxFile l_mtxFile(l_mtxFileName);
+       l_mtxFileName[index] = argv[l_argIdx++];
+       MtxFile l_mtxFile(l_mtxFileName[index]);
        //The check() modifies the dimensions when loading from a matrix file. Please use 0 for l_M, l_K and l_NNZ when provding matrix file
        l_pca.check(l_m[index], l_k[index], l_nnz[index], l_mtxFile);
        std::string l_handleA = argv[l_argIdx++];
@@ -193,6 +193,8 @@ int main(int argc, char **argv)
   //double l_effKernelPct;
   double l_effApiPct;
   
+  std::string matrixName;
+  
   for (int i=0; i<GEMX_numKernels; ++i) {
     for(int j=0;j<l_instrCount;++j){ //number of instructions
         l_op = l_kargsRes[i].load(l_program[i].getBaseResAddr(), j * l_kargsRes[i].getInstrWidth());
@@ -200,7 +202,7 @@ int main(int argc, char **argv)
         assert(l_op == KargsType::OpResult);
         l_instrRes = l_kargsRes[i].getInstrResArgs();
         l_cycleCount = l_instrRes.getDuration();
-        std::cout << std::string("cycles in kernel ")<< i << " "<<l_cycleCount <<std::endl;        
+        //std::cout << std::string("cycles in kernel ")<< i << " "<<l_cycleCount <<std::endl;        
         l_maxCycleCount[j] = (l_cycleCount > l_maxCycleCount[j])? l_cycleCount: l_maxCycleCount[j];
         l_timeKernelInMs = l_maxCycleCount[j] / (l_boardFreqMHz * 1e6) * 1e3;
         l_maxTimeKernelInMs[j] = (l_timeKernelInMs > l_maxTimeKernelInMs[j])? l_timeKernelInMs: l_maxTimeKernelInMs[j];
@@ -208,7 +210,7 @@ int main(int argc, char **argv)
         //l_totalPerfKernelInGops += l_perfKernelInGops[j];
     }
   }
-  std::cout << std::string("DATA_CSV:,DdrWidth,Freq,M,K,NNZ,")
+  std::cout << std::string("DATA_CSV:,DdrWidth,Freq,M,K,NNZ,MatrixName,")
              + "KernelCycles,"
              + "TimeKernelMs,TimeApiMs,"
              + "EffKernelPct,EffApiPct,"
@@ -219,10 +221,11 @@ int main(int argc, char **argv)
   //l_effKernelPct = 100 * l_timeMsAt100pctEff / l_maxTimeKernelInMs;
      l_effCycles = 100 * l_total_theory_cycle[i] / l_maxCycleCount[i];
      l_effApiPct = 100 * l_timeMsAt100pctEff / l_timeApiInMs;
+     matrixName = l_mtxFileName[i].substr(l_mtxFileName[i].find_last_of("/")+1);
   // Show time, Gops in csv format
 
      std::cout << "DATA_CSV:," <<  GEMX_ddrWidth << "," << l_boardFreqMHz << ","
-            << l_m[i]<<","<<l_k[i]<<","<<l_nnz[i] << ","
+            << l_m[i]<<","<<l_k[i]<<","<<l_nnz[i] << "," <<matrixName<< ","
             << l_maxCycleCount[i] << ","
             << l_maxTimeKernelInMs[i] << "," << l_timeApiInMs << ","
             << l_effCycles<<","<<l_effApiPct<<","

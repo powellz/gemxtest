@@ -251,14 +251,15 @@ int main(int argc, char **argv)
   //l_effKernelPct = 100 * l_timeMsAt100pctEff / l_maxTimeKernelInMs;
   l_effCycles = 100 * theory_cycles / l_maxCycleCount;
   l_effApiPct = 100 * l_timeMsAt100pctEff / l_timeApiInMs;
+  std::string matrixName = l_mtxFileName.substr(l_mtxFileName.find_last_of("/")+1);
   // Show time, Gops in csv format
-  std::cout << std::string("DATA_CSV:,DdrWidth,Freq,M,K,NNZ,")
+  std::cout << std::string("DATA_CSV:,DdrWidth,Freq,M,K,NNZ,MatrixName,")
              + "KernelCycles,"
              + "TimeKernelMs,TimeApiMs,"
              + "EffKernelPct,EffApiPct,"
              + "PerfKernelGops,PerfApiGops\n"
             << "DATA_CSV:," <<  GEMX_ddrWidth << "," << l_boardFreqMHz << ","
-            << l_M << "," << l_K << "," << l_NNZ << ","
+            << l_M << "," << l_K << "," << l_NNZ << "," << matrixName << ","
             << l_maxCycleCount << ","
             << l_maxTimeKernelInMs << "," << l_timeApiInMs << ","
             << l_effCycles<<","<<l_effApiPct<<","
