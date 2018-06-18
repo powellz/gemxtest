@@ -44,6 +44,19 @@
 
 namespace gemx {
 
+typedef enum<MUL, ST> OpCode;
+class Instruction {
+public:
+	OpCode m_Op;
+	uint8_t m_StageId;
+	unsigned int m_NnzBlocks;
+	unsigned int m_KmBlocks; //blocks of data along K or M dimension. K should equal to M.
+public:
+	Instruction() {}
+	Instruction (OpCode p_op, uint8_t t_StageId, unsigned int p_nnzBlocks, unsigned int p_kmBlocks)
+		: m_Op(p_op), m_StageId(t_StageId), m_NnzBlocks(p_nnzBlocks) {}
+};
+ 
 template <
 	typename t_FloatType,
 	typename t_FloatEqIntType,
@@ -113,17 +126,22 @@ class Uspmv
 		typedef WideType<IdxUramWideType, t_NumUramPerDdr> IdxUramWideType;
 		typedef WideType<DataUramWideType, t_NumUramPerDdr> DataUramWideType;
 
+		typedef t_FloatEqIntType ParamType;
+
     typedef hls::stream<DataDdrWideType> DataDdrWideStreamType;
 		typedef hls::stream<IdxDdrWideType> IdxDdrWideStreamType;
 		typedef hls::stream<UspmvCDdrWideType> UspmvCDdrWideStreamType;
 		typedef hls::stream<UspmvCType> UspmvCStreamType;
-		typedef hls::stream<bool>ControlStreamType;
+		typedef hls::stream<bool> ControlStreamType;
+
+		typedef hls::stream<Instruction> InstrStreamType;
+		typedef hls::stream<ParamType> ParamStreamType;
 
   private:
 		IdxUramWideType m_Acol[t_UspmvStages][t_NumUramPerDdr][t_KvectorBlocks];
 		IdxUramWideType m_Arow[t_UspmvStages][t_NumUramPerDdr][t_MvectorBlocks];
 		DataUramWideType m_Adata[t_UspmvStages][t_NumUramPerDdr][t_NnzVectorBlocks];
-		t_FloatType m_Cdata[t_DdrWidth][t_Interleaves][t_Moffsets];
+		t_FloatType m_Cdata[t_UspmvStages][t_DdrWidth][t_Interleaves][t_Moffsets];
 		
     static const unsigned int t_Debug = 0;
 
@@ -132,7 +150,7 @@ class Uspmv
 		//read col indices from  URAM and form IdxWideStreamType
 		//the col indices storage: starge col index, offset, offset, offset
 		void
-		loadRow(IdxDdrWideStreamType &p_outS, unsigned int p_nnzBlocks, unsigned int p_stageId) {
+		loadRow(IdxDdrWideStreamType &p_outS, unsigned int p_nnzBlocks, unsigned int t_StageId) {
 			IdxDdrWideType l_row;
 			#pragma HLS array_partition variable=l_row dim=1 complete
 			IdxUramWideType l_rowUram[t_NumUramPerDdr];
@@ -141,7 +159,7 @@ class Uspmv
 			for (unsigned int i=0; i<p_nnzBlocks; ++i) {
 			#pragma HLS pipeline
 				for (unsigned int b=0; b<t_NumUramPerDdr; ++b) {
-					l_rowUram[b] = m_Arow[p_stageId][b][i];
+					l_rowUram[b] = m_Arow[t_StageId][b][i];
 					for (unsigned int j=0; j<t_UramWidth; ++j) {
 						l_row[b*t_NumUramPerDdr+j] = l_rowUram[b][j];
 					}
@@ -150,7 +168,7 @@ class Uspmv
 			}
 		}
 		void
-		loadA(DataDdrWideStream &p_outS, unsigned int p_nnzBlocks, unsigned int p_stageId) {
+		loadA(DataDdrWideStream &p_outS, unsigned int p_nnzBlocks, unsigned int t_StageId) {
 			DataDdrWideType l_val;
 			#pragma HLS array_partition variable=l_val dim=1 complete
 			DataUramWideType l_valUram[t_NumUramPerDdr];
@@ -159,7 +177,7 @@ class Uspmv
 			for (unsigned int i=0; i<p_nnzBlocks; ++i){
 			#pragma HLS pipeline
 				for (unsigned int b=0; b<t_NumUramPerDdr; ++b) {
-					l_valUram[b] = m_Adata[p_stageId][b][i];
+					l_valUram[b] = m_Adata[t_StageId][b][i];
 					for (unsigned int j=0; j<t_UramWidth; ++j) {
 						l_val[b*t_UramWidth+j] = l_valUram[b][j];
 					}
@@ -168,7 +186,7 @@ class Uspmv
 			}	
 		}
 		void
-		loadCol(IdxDdrWideStreamType &p_outS, unsigned int p_nnzBlocks, unsigned int p_stageId) {
+		loadCol(IdxDdrWideStreamType &p_outS, unsigned int p_nnzBlocks, unsigned int t_StageId) {
 			IdxDdrWideType l_col;
 			#pragma HLS array_partition variable=l_col dim=1 complete
 			IdxUramWideType l_colUram[t_NumUramPerDdr];
@@ -177,7 +195,7 @@ class Uspmv
 			for (unsigned int i=0; i<p_nnzBlocks; ++i){
 			#pragma HLS pipeline
 				for (unsigned int b=0; b<t_NumUramPerDdr; ++b) {
-					l_colUram[b] = m_Acol[p_stageId][b][i];
+					l_colUram[b] = m_Acol[t_StageId][b][i];
 					for (unsigned int j=0; j<t_UramWidth; ++j) {
 						l_col[b*t_NumUramPerDdr+j] = l_colUram[b][j];
 					}
@@ -454,7 +472,16 @@ class Uspmv
 				}
 		
     void
-    aggUnit(UspmvCStreamType p_inDataS[t_Interleaves], ControlStreamType &p_inCntS, unsigned int t_BankId) {
+    aggUnit(UspmvCStreamType p_inDataS[t_Interleaves], ControlStreamType &p_inCntS, unsigned int t_BankId, unsigned int t_StageId) {
+				//init m_Cdata with 0s
+				for (unsigned int i=0; i<t_Moffsets; ++i) {
+				#pragma HLS pipeline
+					for (unsigned int j=0; j<t_Interleaves; ++j) {
+						for (unsigned int k=0; k<t_DdrWidth; ++k) {
+							m_Cdata[t_StageId][k][j][i] = 0;
+						}
+					}
+				}				
 
         bool l_exit = false;
         bool l_preDone = false;
@@ -483,7 +510,7 @@ class Uspmv
               unsigned int l_rowOffset = cVal[g].getRow();
 							t_FloatType l_valC = cVal[g].getC();
 							if (l_valC != 0) {
-								m_Cdata[t_BandId][g][l_rowOffset] += l_valC;
+								m_Cdata[t_StageId][t_BandId][g][l_rowOffset] += l_valC;
 							}
               t_Debug && std::cout << "DEBUG: aggUnit " << t_BankId << " slot " << g
                                    << "  added " << cVal[g] << " to m_C "
@@ -498,8 +525,108 @@ class Uspmv
       }
 
 public:
+		void 
+		spmvDecode(InstrStreamType &p_inS, InstrStreamType &p_outS, 
+							 ParamStreamType p_outNnzS[2], ParamStreamType &p_outKmS,
+								unsigned int t_StageId) {
+			bool l_exit=false;
+			do {
+			#pragma HLS pipeline
+				Instruction l_instr;
+				l_instr = p_inS.read();
+				l_exit = (l_instr.m_Op == Instruction::ST);
+				uint8_t l_stageId = l_instr.m_StageId;
+				ParamType l_nnzBlocks = l_instr.m_NnzBlocks;
+				ParamType l_kmBlocks = l_instr.m_KmBlocks;
+				if (l_stageId == t_StageId) {
+					for (unsigned int i=0; i<2; ++i) {
+						p_outNnzS[i].write(l_nnzBlocks);
+					}
+					p_outKmS.write(l_kmBlocks);
+				}
+				else {
+					p_outS.write(l_instr);
+				}
+			} while (!l_exit);
+		}
 		void
-		spmvCompute(DataDdrWideStreamType &p_inBs, unsigned int p_nnzBlocks, unsigned int p_stageId) {
+		spmvStFwdA (DataDdrWideStreamType &p_inDataS, ControlStreamType &p_inCntS, ParamStreamType &p_inNnzS,
+								DataDdrWideStreamType &p_OutDataS,ControlStreamType &p_outCntS,
+								unsigned int t_StageId){
+			ParamType p_nnzBlocks = p_inNnzS.read();
+			//store col
+			for (unsigned int i=0; i<p_nnzBlocks; ++i) {
+			#pragma HLS pipeline
+				DataDdrWideType l_val;
+				l_val = p_inDataS.read();
+				WideConv<DataDdrWideType, IdxDdrWideType> l_conv;
+				IdxDdrWideType l_col = l_conv.convert(l_val);
+				#pragma HLS array_partition variable=l_col dim=1 complete
+				IdxUramWideType l_uramCol[t_NumUramPerDdr];
+				#pragma HLS array_partition variable=l_uramCol dim=1 complete
+				#pragma HLS array_partition variable = l_uramCol dim=2 complete
+				for (unsigned int j=0; j<t_NumUramPerDdr; ++j) {
+					for (unsigned int k=0; k<t_UramWidth; ++k) {
+						l_uramCol[j][k] = l_col[j*t_UramWidth+k];
+					}
+					m_Acol[t_StageId][j][i] = l_uramCol[j];
+				}
+			}
+			//store row
+			for (unsigned int i=0; i<p_nnzBlocks; ++i) {
+			#pragma HLS pipeline
+				DataDdrWideType l_val;
+				l_val = p_inDataS.read();
+				WideConv<DataDdrWideType, IdxDdrWideType> l_conv;
+				IdxDdrWideType l_row = l_conv.convert(l_val);
+				#pragma HLS array_partition variable=l_row dim=1 complete
+				IdxUramWideType l_uramRow[t_NumUramPerDdr];
+				#pragma HLS array_partition variable=l_uramRow dim=1 complete
+				#pragma HLS array_partition variable = l_uramRow dim=2 complete
+				for (unsigned int j=0; j<t_NumUramPerDdr; ++j) {
+					for (unsigned int k=0; k<t_UramWidth; ++k) {
+						l_uramRow[j][k] = l_row[j*t_UramWidth+k];
+					}
+					m_Arow[t_StageId][j][i] = l_uramRow[j];
+				}
+			}
+			//store val 
+			for (unsigned int i=0; i<p_nnzBlocks; ++i) {
+			#pragma HLS pipeline
+				DataDdrWideType l_val;
+				l_val = p_inDataS.read();
+				#pragma HLS array_partition variable=l_val dim=1 complete
+				DataUramWideType l_uramVal[t_NumUramPerDdr];
+				#pragma HLS array_partition variable=l_uramVal dim=1 complete
+				#pragma HLS array_partition variable = l_uramVal dim=2 complete
+				for (unsigned int j=0; j<t_NumUramPerDdr; ++j) {
+					for (unsigned int k=0; k<t_UramWidth; ++k) {
+						l_uramVal[j][k] = l_val[j*t_UramWidth+k];
+					}
+					m_AData[t_StageId][j][i] = l_uramVal[j];
+				}
+			}
+			//forward the rest
+			bool l_exit=false;
+			bool l_final=false;
+			while (!l_exit) { 
+			#pragma HLS pipeline
+				l_exit = p_inDataS.empty() && l_final;
+				DataDdrWideType l_val;
+				if (!p_inDataS.read(l_val)) {
+					p_outDataS.write(l_val);
+				}
+				bool l_unused;
+				if (p_inCntS.read_nb(l_unused)) {
+					l_final=true;
+				}
+			}
+			p_outCntS.write(true);
+		}
+ 
+		void
+		spmvCompute(DataDdrWideStreamType &p_inBs, ParamStreamType &p_inNnzS, unsigned int t_StageId) {
+			ParamType p_nnzBlocks = p_inNnzS.read();
 		#pragma HLS dataflow
 			static const unsigned int t_FifoDeep=16;
 			static const unsigned int t_FifoShallow = 1;
@@ -548,11 +675,11 @@ public:
 			#pragma HLS stream variable=l_cnt2aggUnit depth=t_FifoShallow
 
 			
-			loadCol(l_idx2pairB, p_nnzBlocks, p_stageId) 
+			loadCol(l_idx2pairB, p_nnzBlocks, t_StageId) 
 			pairB(l_idx2pairB, p_inBs, DataDdrWideStream l_dataB2multAB, p_nnzBlocks)
-			loadA(l_dataA2multAB, p_nnzBlocks, p_stageId); 
+			loadA(l_dataA2multAB, p_nnzBlocks, t_StageId); 
 			multAB(l_dataA2multAB, l_dataB2multAB, l_data2formC, p_nnzBlocks) 
-			loadRow(l_idx2formC, p_nnzBlocks, p_stageId); 
+			loadRow(l_idx2formC, p_nnzBlocks, t_StageId); 
 			formC(l_idx2formC, l_data2formC, l_data2xBarRowSplit, p_nnzBlocks); 
       xBarRowSplit(l_data2xBarRowSplit, l_data2xBarRowMerge, l_cnt2xBarRowMerge, p_nnzBlocks);
       xBarRowMerge(l_data2xBarRowMerge, l_cnt2RowMerge, l_data2rowInterleave, l_cnt2RowInterleave);
@@ -563,6 +690,113 @@ public:
         rowUnit(l_data2rowUnit[w], l_cnt2rowUnit[w], l_data2aggUnit[w], l_cnt2aggUnit[w], w);
         aggUnit(l_data2aggUnit[w], l_cnt2aggUnit[w], w);
      }
+		}
+
+		//spmvStreamC: read m_Cdata and stream it out
+		void
+		spmvStreamC(DataDdrWideStreamType &p_outCs, ParamStreamType &p_inKmS, unsigned int t_StageId){
+			ParamType p_mBlocks = p_inKmS.read();
+			unsigned int l_offsets = p_mBlocks / t_Interleaves;
+			assert(l_offset*t_Interleaves == p_mBlocks);
+			for (unsigned int i=0; i<l_offsets; ++i) {
+				for (unsigned int j=0; j<t_Interleaves; ++j) {
+				#pragma HLS pipeline
+					DdrWideType l_val;
+					#pragma HLS array_partition variable=l_val dim=1 complete
+					for (unsigned int k=0; k<t_DdrWidth; ++k) {
+						l_val[k] = m_Cdata[t_StageId][k][j][i];	
+					}
+					p_outCs.write(l_val);
+				}
+			}
+		}
+		
+		void
+		spmvStoreA(DataDdrWideStreamType &p_inDataS, ControlStreamType &p_inCntS, ParamStreamType &p_inNnzS,
+								unsigned int t_StageId){
+			ParamType p_nnzBlocks = p_inNnzS.read();
+			//store col
+			for (unsigned int i=0; i<p_nnzBlocks; ++i) {
+			#pragma HLS pipeline
+				DataDdrWideType l_val;
+				l_val = p_inDataS.read();
+				WideConv<DataDdrWideType, IdxDdrWideType> l_conv;
+				IdxDdrWideType l_col = l_conv.convert(l_val);
+				#pragma HLS array_partition variable=l_col dim=1 complete
+				IdxUramWideType l_uramCol[t_NumUramPerDdr];
+				#pragma HLS array_partition variable=l_uramCol dim=1 complete
+				#pragma HLS array_partition variable = l_uramCol dim=2 complete
+				for (unsigned int j=0; j<t_NumUramPerDdr; ++j) {
+					for (unsigned int k=0; k<t_UramWidth; ++k) {
+						l_uramCol[j][k] = l_col[j*t_UramWidth+k];
+					}
+					m_Acol[t_StageId][j][i] = l_uramCol[j];
+				}
+			}
+			//store row
+			for (unsigned int i=0; i<p_nnzBlocks; ++i) {
+			#pragma HLS pipeline
+				DataDdrWideType l_val;
+				l_val = p_inDataS.read();
+				WideConv<DataDdrWideType, IdxDdrWideType> l_conv;
+				IdxDdrWideType l_row = l_conv.convert(l_val);
+				#pragma HLS array_partition variable=l_row dim=1 complete
+				IdxUramWideType l_uramRow[t_NumUramPerDdr];
+				#pragma HLS array_partition variable=l_uramRow dim=1 complete
+				#pragma HLS array_partition variable = l_uramRow dim=2 complete
+				for (unsigned int j=0; j<t_NumUramPerDdr; ++j) {
+					for (unsigned int k=0; k<t_UramWidth; ++k) {
+						l_uramRow[j][k] = l_row[j*t_UramWidth+k];
+					}
+					m_Arow[t_StageId][j][i] = l_uramRow[j];
+				}
+			}
+			//store val 
+			for (unsigned int i=0; i<p_nnzBlocks; ++i) {
+			#pragma HLS pipeline
+				DataDdrWideType l_val;
+				l_val = p_inDataS.read();
+				#pragma HLS array_partition variable=l_val dim=1 complete
+				DataUramWideType l_uramVal[t_NumUramPerDdr];
+				#pragma HLS array_partition variable=l_uramVal dim=1 complete
+				#pragma HLS array_partition variable = l_uramVal dim=2 complete
+				for (unsigned int j=0; j<t_NumUramPerDdr; ++j) {
+					for (unsigned int k=0; k<t_UramWidth; ++k) {
+						l_uramVal[j][k] = l_val[j*t_UramWidth+k];
+					}
+					m_AData[t_StageId][j][i] = l_uramVal[j];
+				}
+			}
+			//forward the rest
+			bool l_exit=false;
+			bool l_final=false;
+			while (!l_exit) { 
+			#pragma HLS pipeline
+				l_exit = p_inDataS.empty() && l_final;
+				bool l_unused;
+				if (p_inCntS.read_nb(l_unused)) {
+					l_final=true;
+				}
+			}
+		}
+		
+		void
+		spmvDecodeLast (InstrStreamType &p_inS, ParamStreamType p_outNnzS[2], unsigned int t_StageId) {
+			bool l_exit=false;
+			do {
+			#pragma HLS pipeline
+				Instruction l_instr;
+				l_instr = p_inS.read();
+				l_exit = (l_instr.m_Op == Instruction::ST);
+				uint8_t l_stageId = l_instr.m_StageId;
+				ParamType l_nnzBlocks = l_instr.m_NnzBlocks;
+				ParamType l_kmBlocks = l_instr.m_KmBlocks;
+				if (l_stageId == t_StageId) {
+					for (unsigned int i=0; i<2; ++i) {
+						p_outNnzS[i].write(l_nnzBlocks);
+					}
+				}
+			} while (!l_exit);
 		}
 };
 
