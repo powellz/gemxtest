@@ -156,6 +156,22 @@ class SpmvArgsUram {
       {}
 };
 
+class UspmvArgs
+{
+	public:
+		unsigned int m_Aoffset, m_Boffset, m_Coffset, m_NnzOffset, m_K;
+	public:
+		UspmvArgs() {}
+		UspmvArgs(
+			unsigned int p_Aoffset, 
+			unsigned int p_Boffset, 
+			unsigned int p_Coffset, 
+			unsigned int p_NnzOffset, 
+			unsigned int p_K
+		) : m_Aoffset(p_Aoffset), m_Boffset(p_Boffset), m_Coffset(p_Coffset), m_NnzOffset(p_NnzOffset), m_K(p_K)
+		{}
+};
+
 //////////////////////////// GEMM ////////////////////////////
 class GemmArgs {
   public:
@@ -295,7 +311,7 @@ class Kargs
         }
     };
     typedef ap_uint< t_DdrWidthBits >   DdrBitType;
-    typedef enum {OpControl, OpGemv, OpGemm, OpTransp, OpSpmv, OpResult, OpFail} OpType;
+    typedef enum {OpControl, OpGemv, OpGemm, OpTransp, OpSpmv, OpUspmv, OpResult, OpFail} OpType;
         
   private:
     DdrBitType m_Flat;
@@ -604,6 +620,29 @@ class Kargs
       storeVal(p_args.m_Nnz);
       storeVal(p_args.m_Cblocks);
       storeVal(p_args.m_DescPages);
+    }
+    UspmvArgs
+    getUspmvArgs() {
+      UspmvArgs l_args;
+      assert(sizeof(l_args) <=  sizeof(m_Flat) - sizeof(OpType));
+      loadVal(l_args.m_Aoffset);
+      loadVal(l_args.m_Boffset);
+      loadVal(l_args.m_Coffset);
+      loadVal(l_args.m_NnzOffset);
+      loadVal(l_args.m_K);
+      UspmvArgs l_ret = hlsReg<UspmvArgs, t_ArgPipeline>(l_args);
+      return l_ret;
+    }
+    void
+    setUspmvArgs(UspmvArgs p_args) {
+      assert(sizeof(p_args) <=  sizeof(m_Flat) - sizeof(OpType));
+      initPos();
+      storeValConst(int(OpUspmv));
+      storeVal(p_args.m_Aoffset);
+      storeVal(p_args.m_Boffset);
+      storeVal(p_args.m_Coffset);
+      storeVal(p_args.m_NnzOffset);
+      storeVal(p_args.m_K);
     }
     static unsigned int
     getInstrWidth() {return(t_InstrWidth);}

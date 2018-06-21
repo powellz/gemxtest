@@ -112,6 +112,8 @@ class Uspmv
 		static const unsigned int t_NumUramPerDdr = t_DdrWidth / t_UramWidth; //number of URAM slices used to store one data DDR
 		static const unsigned int t_DdrWidthMinusOne = t_DdrWidth -1;
 		static const unsigned int t_Moffsets = t_MvectorBlocks / t_Interleaves;
+		static const unsigned int t_NumAddrPerDdr = 16;
+		static const unsigned int t_AddrBlocks = (t_UspmvStages + t_NumAddrPerDdr - 1) / t_NumAddrPerDdr;
     
   public:
 		typedef UspmvC<t_FloatType, t_FloatEqIntType, t_DdrWidth, t_Interleaves> UspmvCType;
@@ -127,6 +129,8 @@ class Uspmv
 		typedef WideType<DataUramWideType, t_NumUramPerDdr> DataUramWideType;
 
 		typedef t_FloatEqIntType ParamType;
+		typedef unsigned int AddrType;
+		typedef <AddrTyps, t_NumAddrPerDdr> AddrDdrWideType;
 
     typedef hls::stream<DataDdrWideType> DataDdrWideStreamType;
 		typedef hls::stream<IdxDdrWideType> IdxDdrWideStreamType;
@@ -136,6 +140,8 @@ class Uspmv
 
 		typedef hls::stream<Instruction> InstrStreamType;
 		typedef hls::stream<ParamType> ParamStreamType;
+
+		typedef UspmvArgs UspmvArgsType;
 
   private:
 		IdxUramWideType m_Acol[t_UspmvStages][t_NumUramPerDdr][t_KvectorBlocks];
@@ -797,6 +803,126 @@ public:
 					}
 				}
 			} while (!l_exit);
+		}
+		
+		void
+		loadAB(
+			DataDdrWideType *p_rdAddr,
+			DataDdrWideType *p_bAddr,
+			unsigned int p_aOffsetBase,
+			unsigned int p_nnzOffsetBase,
+			unsigned int p_kBlocks,
+			InstrStreamType &p_outInstrS,
+			DataDdrWideStreamType &p_outAs,
+			ControlStreamType &p_outAcntS,
+			DataDdrWideStreamType &p_outBs
+		) {
+			//read all Nnzs to construct instructions
+			AddrDdrWideType *l_nnzAddr = p_rdAddr + p_nnzOffsetBase * AddrDdrWideType::per4k();
+			WideType<AddrType, t_UspmvStages> l_nnzVals;
+			WideType<AddrType, t_UspmvStages> l_nnzBlocks;
+			#pragma HLS array_partition variable=l_nnzVals dim=1 complete
+			#pragma HLS array_partition variable=l_nnzBlocks dim=1 complete
+			for (unsigned int i=0; i<t_AddrBlocks; ++i){
+			#pragma HLS pipeline
+				AddrDdrWideType l_addr = l_nnzAddr[i] 
+				#pragma HLS array_partition variable=l_addr dim=1 complete
+				for (unsigned int j=0; j<t_NumAddrPerDdr; ++j) {
+					if ((i*t_NumAddrPerDdr+j) < t_UspmvStages) {
+						l_nnzVals[i*t_NumAddrPerDdr+j] = l_addr[j];
+					}
+				}
+			}
+			for (unsigned int i=0; i<t_UspmvStages; ++i) {
+			#pragma HLS UNROLL
+				l_nnzBlocks[i] = (l_nnzVals[i] / t_DdrWidth)*3;
+			}
+
+			for (unsigned int i=0; i<t_UspmvStages; ++i) {
+			#pragma HLS pipeline
+				Instruction l_instr(Instruction::MUL, i, l_nnzBlocks[i], p_kBlocks);
+				p_outInstrS.write(l_instr);
+			}
+			Instruction l_stInstr(Instruction::ST, t_UspmvStages, 0, p_kBlocks);
+			p_outInstrS.write(l_stInstr);
+
+			//load A offsets
+			AddrDdrWideType *l_aAddr = p_rdAddr + p_aOffsetBase * AddrDdrWideType::per4k();
+			WideType<AddrType, t_UspmvStages> l_aOffsets;
+			#pragma HLS array_partition variable=l_Aoffsets dim=1 complete
+			for (unsigned int i=0; i<t_AddrBlocks; ++i) {
+			#pragma HLS pipeline
+				AddrDdrWideType l_addr = l_aAddr[i];
+				for (unsigned int j=0; j<t_NumAddrPerDdr; ++j) {
+					if ((i*t_NumAddrPerDdr+j) < t_UspmvStages) {
+						l_aOffsets[i*t_NumAddrPerDdr+j] = l_addr[j];
+					}
+				}
+			}
+
+			//load A
+			for (unsigned int i=0; i<t_UspmvStages; ++i) {
+				DataDdrWideType *l_aData	= p_rdAddr + l_aOffsets[i] * DataDdrWideType::per4k();
+				for (unsigned int j=0; j<l_nnzBlocks[i]; ++j) {
+				#pragma HLS pipeline
+					DataDdrWideType l_data = l_aData[j];
+					p_outAs.write(l_data);
+				} 
+			}
+			p_outAcntS.write(true);
+		
+			//loadB
+			for (unsigned int i=0; i<p_kBlocks; ++i) {
+			#pragma HLS pipeline
+				DataDdrWideType l_data = p_bAddr[i];
+				p_outBs.write(l_data);
+			}		
+		}
+
+		storeC(
+			DataDdrWideStreamType &p_inCs,
+			DataDdrWideType *p_cAddr,
+			unsigned int p_kBlocks
+		){
+			for (unsigned int i=0; i<p_kBlocks; ++i){
+			#pragma HLS pipeline
+				DataDdrWideType l_data = p_inCs.read();
+				p_cAddr[i] = l_data;
+			}
+		}
+		
+		void
+		streamUspmv(
+			DataDdrWideType *p_rdAddr,
+			DataDdrWideType *p_bAddr,
+			DataDdrWideType *p_cAddr,
+			unsigned int p_aOffsetBase,
+			unsigned int p_nnzOffsetBase,
+			unsigned int p_kBlocks
+		)
+		{
+			InstrStreamType l_instS;
+			DataDdrWideStreamType l_aDataS;
+			ControlStreamType l_aCntS;
+			DataDdrWideStreamType l_bS;
+		#pragma HLS DATAFLOW
+			loadAB(p_rdAddr, p_bAddr, p_aOffsetBase, p_nnzOffsetBase, p_kBlocks, l_instS, l_aDataS, l_aCntS, l_bS);
+			storeC(l_cS, p_cAddr, p_kBlocks);	
+		}	
+		void
+		runUspmv(
+			DataDdrWideType *p_DdrRd,
+			DataDdrWideType *p_DdrWr,
+			UspmvArgsType &p_Args
+		) {
+			t_Debug && std::cout << "\nrunSpmv START K/M=" << p_Args.m_K << std::endl;
+			#pragma HLS inline off
+			
+			DataDdrWideType *l_bAddr = p_DdrRd + p_Args.m_Boffset * DataDdrWideType::per4k();
+			DataDdrWideType *l_cAddr = p_DdrRd + p_Args.m_Coffset * DataDdrWideType::per4k();
+			const unsigned int l_kBlocks = p_Args.m_K/t_DdrWidth;
+			assert(l_kBlocks * t_DdrWidth == p_Args.m_K);
+
 		}
 };
 

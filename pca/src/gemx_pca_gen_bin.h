@@ -87,10 +87,11 @@ showTimeData(std::string p_Task, TimePointType &t1, TimePointType &t2, double *p
   if (p_TimeMsOut) {
     *p_TimeMsOut = l_timeMs;
   }
-  (VERBOSE > 0) && std::cout << p_Task
+  (VERBOSE > 0) && std::cout <<"\n" << p_Task
             << "  " << std::fixed << std::setprecision(6)
             << l_timeMs << " msec\n";
 }
+
 
 class MtxRow {
   private:
@@ -496,6 +497,87 @@ class SpMat
                       << "\n";
           }
         }
+      }
+    void
+    fillFromNnz(std::vector<MtxRow> p_Rows) {
+        assert(p_Rows.size() ==  nnz());
+        sort(p_Rows.begin(), p_Rows.end()); 
+        // Partition the matrix
+        std::vector<std::vector<MtxRow>> l_part;
+        l_part.reserve(GEMX_spmvNumCblocks);
+        for (unsigned int i = 0; i < m_Nnz; ++i) {
+          MtxRow l_row = p_Rows[i];
+          unsigned int l_cBlock = l_row.getRow() / t_RowsInCblock;
+          if (l_cBlock >= l_part.size()) {
+            l_part.resize(l_cBlock + 1);
+          }
+          l_part[l_cBlock].push_back(l_row);
+        }
+        m_Cblocks = l_part.size();
+        
+        // Pad each partition nnzs to align with ddr width
+        const unsigned int l_spmvAlignNnz = GEMX_spmvWidth;
+        for (unsigned int l_cBlock = 0; l_cBlock < m_Cblocks; ++l_cBlock) {
+          unsigned int l_nnz = l_part[l_cBlock].size();
+          unsigned int l_nnzAligned =l_spmvAlignNnz * ((l_nnz + l_spmvAlignNnz - 1) / l_spmvAlignNnz);
+          assert(l_nnzAligned >= l_nnz);
+          l_part[l_cBlock].resize(l_nnzAligned);
+        }
+        
+        // Break long rows
+        const unsigned int l_rowUnits = GEMX_spmvWidth * GEMX_spmvMacGroups;
+        for (unsigned int l_cBlock = 0; l_cBlock < m_Cblocks; ++l_cBlock) {
+          std::array<std::queue<MtxRow>, l_rowUnits> l_rowQueues;
+          // Separate per row unit
+          unsigned int l_nnz = l_part[l_cBlock].size();
+          for(auto & l_row : l_part[l_cBlock]) {
+            l_rowQueues[l_row.getRow() % l_rowUnits].push(l_row);
+          }
+          l_part[l_cBlock].clear();
+          // Aggregate to max row length
+          const unsigned int l_rowBreak = 16; // This should roughly match the smallest chain of t_FifoDepthDeep
+          unsigned int l_doneNnzs = 0;
+          while (l_doneNnzs < l_nnz) {
+            for (unsigned int l_rowUnit = 0 ; l_rowUnit < l_rowUnits; l_rowUnit++) {
+              for (unsigned int i = 0 ; i < l_rowBreak; i++) {
+                if (l_rowQueues[l_rowUnit].empty()) {
+                  break;
+                } else {
+                  l_part[l_cBlock].push_back(l_rowQueues[l_rowUnit].front());
+                  l_rowQueues[l_rowUnit].pop();
+                  l_doneNnzs++;
+                }
+              }
+            }
+          }
+        }
+        
+        // Create block descriptors
+        unsigned int l_startIdx = 0;
+        for (unsigned int l_cBlock = 0; l_cBlock < m_Cblocks; ++l_cBlock) {
+          unsigned int l_nnz = l_part[l_cBlock].size();
+          for (unsigned int i = 0; i < l_nnz; ++i) {
+            MtxRow l_row = l_part[l_cBlock][i];
+            Tmat l_m(Tddr(l_row.getVal()), l_row.getRow() % t_RowsInCblock, l_row.getCol());
+            TmatD l_mD = l_m.getAsAd();
+            getVal(l_startIdx + i) = l_mD;
+            
+            0 && std::cout << "  DEBUG fillFromVector"
+                      << "  l_cBlock=" << l_cBlock
+                      << "  i=" << i
+                      << "  l_m = " << l_m
+                      << "  l_D = " << l_mD
+                      << "\n";
+          }
+          SpmvAdescType l_desc(l_nnz, l_startIdx / t_numSpmvPerPage);
+          getDesc(l_cBlock) = l_desc;
+          l_startIdx += l_nnz;
+          // Align start to 4kB
+          while ((l_startIdx % t_numSpmvPerPage) != 0) {
+            l_startIdx++;
+          }
+        }
+        std::cout << "INFO: Spmv fillFromVector number of partitions " << m_Cblocks << "\n";
       }
 
     std::vector<MtxRow>
@@ -917,7 +999,7 @@ class MtxFile
             }
             boost::iostreams::close(l_bs);
             // Sort to make canonical
-            sort(m_Rows.begin(), m_Rows.end());
+            //sort(m_Rows.begin(), m_Rows.end());
             // Pad with 0s
             while (m_Nnz % GEMX_spmvWidth != 0) {
               std::cout << "INFO: Added padding row to the mtx data\n";
@@ -1080,7 +1162,8 @@ class GenPca
     
     if (l_newAllocA) {
       if (p_MtxFile.good()) {
-        l_matA.fillFromVector(p_MtxFile.getRows());
+        //l_matA.fillFromVector(p_MtxFile.getRows());
+        l_matA.fillFromNnz(p_MtxFile.getRows());
       } else {
         l_matA.fillMod(17);
       }

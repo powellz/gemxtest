@@ -35,7 +35,6 @@
 // Fast compile and run:
 //   make host
 
- 
 #include <stdio.h>
 //#include <stdlib.h>
 #include <string>
@@ -43,8 +42,6 @@
 
 #include <mm_malloc.h>
 #include "gemx_pca_gen_bin.h"
-
-
 
 int main(int argc, char** argv)
 {
@@ -126,10 +123,16 @@ int main(int argc, char** argv)
           std::string l_handleA(argv[l_argIdx++]);
           std::string l_handleB(argv[l_argIdx++]);
           std::string l_handleC(argv[l_argIdx++]);
+    			
+					TimePointType l_tp[64];
+    			unsigned int l_tpIdx = 0;
+    			l_tp[l_tpIdx] = std::chrono::high_resolution_clock::now(); 
           MtxFile l_mtxFile(l_mtxFileName);
+    			showTimeData("loadMtx", l_tp[l_tpIdx], l_tp[l_tpIdx+1]); l_tpIdx++;
           if (!l_pca.check(l_m, l_k, l_nnz, l_mtxFile)) exit(1);
           l_pca.addInstr(l_p[wGolden], l_norm, l_minK, l_m,  l_k, l_nnz, l_topK, l_mtxFile,
                           l_handleA, l_handleB, l_handleC, wGolden);
+    			showTimeData("addInstr", l_tp[l_tpIdx], l_tp[l_tpIdx+1]); l_tpIdx++;
        } else {
          std::cerr << "ERROR: unknow op \"" << l_opName << "\"\n";
        }
