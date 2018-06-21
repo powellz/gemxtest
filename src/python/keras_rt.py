@@ -8,10 +8,7 @@ class KerasRT():
         self.b = keras_model.get_weights()[1::2]
         self.min_m = 32*int(min_m)
         self.min_k = 32*int(min_k)
-        self.min_n = 32*int(min_n)
-        self.min_m = 256
-        self.min_k = 256
-        self.min_n = 256        
+        self.min_n = 32*int(min_n) 
         
         self.w = [ np.int16(a*b) for a,b in zip(self.w, wgt_scale)]
         self.b = [ np.int32(a*b) for a,b in zip(self.b, wgt_scale)]
