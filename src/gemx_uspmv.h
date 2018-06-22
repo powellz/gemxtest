@@ -114,7 +114,7 @@ class Uspmv
 		static const unsigned int t_Moffsets = t_MvectorBlocks / t_Interleaves;
 		static const unsigned int t_NumAddrPerDdr = 16;
 		static const unsigned int t_AddrBlocks = (t_UspmvStages + t_NumAddrPerDdr - 1) / t_NumAddrPerDdr;
-    
+   	static const unsigned int t_NumParams = 2; 
   public:
 		typedef UspmvC<t_FloatType, t_FloatEqIntType, t_DdrWidth, t_Interleaves> UspmvCType;
 
@@ -129,6 +129,8 @@ class Uspmv
 		typedef WideType<DataUramWideType, t_NumUramPerDdr> DataUramWideType;
 
 		typedef t_FloatEqIntType ParamType;
+		typedef WideType<ParamType, t_NumParams> WideParamType;
+
 		typedef unsigned int AddrType;
 		typedef <AddrTyps, t_NumAddrPerDdr> AddrDdrWideType;
 
@@ -139,7 +141,7 @@ class Uspmv
 		typedef hls::stream<bool> ControlStreamType;
 
 		typedef hls::stream<Instruction> InstrStreamType;
-		typedef hls::stream<ParamType> ParamStreamType;
+		typedef hls::stream<WideParamType> WideParamStreamType;
 
 		typedef UspmvArgs UspmvArgsType;
 
@@ -533,7 +535,7 @@ class Uspmv
 public:
 		void 
 		spmvDecode(InstrStreamType &p_inS, InstrStreamType &p_outS, 
-							 ParamStreamType p_outNnzS[2], ParamStreamType &p_outKmS,
+							 WideParamStreamType &p_outParamS, 
 								unsigned int t_StageId) {
 			bool l_exit=false;
 			do {
@@ -544,11 +546,12 @@ public:
 				uint8_t l_stageId = l_instr.m_StageId;
 				ParamType l_nnzBlocks = l_instr.m_NnzBlocks;
 				ParamType l_kmBlocks = l_instr.m_KmBlocks;
+				WideParamType l_val;
+				#pragma HLS array_partition variable=l_val dim=1 complete
 				if (l_stageId == t_StageId) {
-					for (unsigned int i=0; i<2; ++i) {
-						p_outNnzS[i].write(l_nnzBlocks);
-					}
-					p_outKmS.write(l_kmBlocks);
+					l_val[0] = l_nnzBlocks;
+					l_val[1] = l_nnzBlocks;
+					p_outParamS.write(l_val);
 				}
 				else {
 					p_outS.write(l_instr);
@@ -556,10 +559,10 @@ public:
 			} while (!l_exit);
 		}
 		void
-		spmvStFwdA (DataDdrWideStreamType &p_inDataS, ControlStreamType &p_inCntS, ParamStreamType &p_inNnzS,
+		spmvStFwdA (DataDdrWideStreamType &p_inDataS, ControlStreamType &p_inCntS,
 								DataDdrWideStreamType &p_OutDataS,ControlStreamType &p_outCntS,
+								ParamType p_nnzBlocks,
 								unsigned int t_StageId){
-			ParamType p_nnzBlocks = p_inNnzS.read();
 			//store col
 			for (unsigned int i=0; i<p_nnzBlocks; ++i) {
 			#pragma HLS pipeline
@@ -631,8 +634,7 @@ public:
 		}
  
 		void
-		spmvCompute(DataDdrWideStreamType &p_inBs, ParamStreamType &p_inNnzS, unsigned int t_StageId) {
-			ParamType p_nnzBlocks = p_inNnzS.read();
+		spmvCompute(DataDdrWideStreamType &p_inBs, ParamType p_nnzBlocks, unsigned int t_StageId) {
 		#pragma HLS dataflow
 			static const unsigned int t_FifoDeep=16;
 			static const unsigned int t_FifoShallow = 1;
@@ -700,8 +702,7 @@ public:
 
 		//spmvStreamC: read m_Cdata and stream it out
 		void
-		spmvStreamC(DataDdrWideStreamType &p_outCs, ParamStreamType &p_inKmS, unsigned int t_StageId){
-			ParamType p_mBlocks = p_inKmS.read();
+		spmvStreamC(DataDdrWideStreamType &p_outCs, ParamType p_mBlocks, unsigned int t_StageId){
 			unsigned int l_offsets = p_mBlocks / t_Interleaves;
 			assert(l_offset*t_Interleaves == p_mBlocks);
 			for (unsigned int i=0; i<l_offsets; ++i) {
@@ -718,9 +719,8 @@ public:
 		}
 		
 		void
-		spmvStoreA(DataDdrWideStreamType &p_inDataS, ControlStreamType &p_inCntS, ParamStreamType &p_inNnzS,
+		spmvStoreA(DataDdrWideStreamType &p_inDataS, ControlStreamType &p_inCntS, ParamType p_nnzBlocks,
 								unsigned int t_StageId){
-			ParamType p_nnzBlocks = p_inNnzS.read();
 			//store col
 			for (unsigned int i=0; i<p_nnzBlocks; ++i) {
 			#pragma HLS pipeline
@@ -787,7 +787,7 @@ public:
 		}
 		
 		void
-		spmvDecodeLast (InstrStreamType &p_inS, ParamStreamType p_outNnzS[2], unsigned int t_StageId) {
+		spmvDecodeLast (InstrStreamType &p_inS, WideParamStreamType &p_outParamS, unsigned int t_StageId) {
 			bool l_exit=false;
 			do {
 			#pragma HLS pipeline
@@ -797,14 +797,52 @@ public:
 				uint8_t l_stageId = l_instr.m_StageId;
 				ParamType l_nnzBlocks = l_instr.m_NnzBlocks;
 				ParamType l_kmBlocks = l_instr.m_KmBlocks;
+				WideParamType l_val;
+				#pragma HLS array_partition variable=l_val dim=1 complete
 				if (l_stageId == t_StageId) {
-					for (unsigned int i=0; i<2; ++i) {
-						p_outNnzS[i].write(l_nnzBlocks);
-					}
+					l_val[0] = l_nnzBlocks;
+					l_val[1] = l_kmBlocks;
+					p_outParamS.write(l_val);
 				}
 			} while (!l_exit);
 		}
 		
+		void 
+		uspmvStageMidSeq(
+			DataDdrWideStreamType &p_inAdataS,
+			ControlStreamType &p_inAcntS,
+			DataDdrWideStreamType &p_inBs,
+			WideParamStreamType &p_inParamS,
+			DataDdrWideStreamType &p_outAdataS,
+			ControlStreamType &p_outAcntS,
+			DataDdrWideStreamType &p_outCs,
+			unsigned int t_StageId
+		) {
+			WideParamType l_val = p_inParamS.read();
+			p_nnzBlocks = l_val[0];
+			p_mBlocks = l_val[1];	
+			spmvStFwdA (p_inAdataS, p_inAcntS, p_OutAdataS, p_outAcntS, p_nnzBlocks, t_StageId);
+			spmvCompute(p_inBs, p_nnzBlocks, t_StageId);
+			spmvStreamC(p_outCs, p_mBlocks, t_StageId);
+		}
+		
+		void 
+		uspmvStageLastSeq(
+			DataDdrWideStreamType &p_inAdataS,
+			ControlStreamType &p_inAcntS,
+			DataDdrWideStreamType &p_inBs,
+			WideParamStreamType &p_inParamS,
+			DataDdrWideStreamType &p_outCs,
+			unsigned int t_StageId
+		) {
+			WideParamType l_val = p_inParamS.read();
+			p_nnzBlocks = l_val[0];
+			p_mBlocks = l_val[1];	
+			spmvStoreA (p_inAdataS, p_inAcntS, p_nnzBlocks, t_StageId);
+			spmvCompute(p_inBs, p_nnzBlocks, t_StageId);
+			spmvStreamC(p_outCs, p_mBlocks, t_StageId);
+		}
+
 		void
 		loadAB(
 			DataDdrWideType *p_rdAddr,
@@ -901,12 +939,25 @@ public:
 			unsigned int p_kBlocks
 		)
 		{
-			InstrStreamType l_instS;
-			DataDdrWideStreamType l_aDataS;
-			ControlStreamType l_aCntS;
-			DataDdrWideStreamType l_bS;
-		#pragma HLS DATAFLOW
-			loadAB(p_rdAddr, p_bAddr, p_aOffsetBase, p_nnzOffsetBase, p_kBlocks, l_instS, l_aDataS, l_aCntS, l_bS);
+			InstrStreamType l_instS[t_UspmvStages];
+			DataDdrWideStreamType l_aDataS[t_UspmvStages];
+			ControlStreamType l_aCntS[t_UspmvStages];
+			DataDdrWideStreamType l_bS[t_UspmvStages];
+			WideParamStreamType l_paramS[t_UspmvStages];
+			DataDdrWideStreamType l_cS;
+		#pragma HLS dataflow
+			loadAB(p_rdAddr, p_bAddr, p_aOffsetBase, p_nnzOffsetBase, p_kBlocks, 
+						 l_instS[0], l_aDataS[0], l_aCntS[0], l_bS[0]);
+			for (unsigned int i=0; i<t_UspmvStages-1; ++i) {
+			#pragma HLS unroll
+				spmvDecode(l_instS[i], l_instS[i+1], l_paramS[i], i);
+				uspmvStageMidSeq( l_aDataS[i], l_aCntS[i], l_bS[i], l_paramS[i],
+													l_aDataS[i+1],l_aCntS[i+1], l_bS[i+1], i);
+			}
+			
+			spmvDecodeLast (l_instS[t_UspmStages-1], l_paramS[t_UspmvStages-1], t_UspmvStages-1);
+			uspmvStageLastSeq(l_aDataS[t_UspmvStages-1], l_aCntS[t_UspmvStages-1], l_bS[t_UspmvStages-1],
+												l_paramS[t_UspmvStages-1], l_cS, t_UspmvStages-1);
 			storeC(l_cS, p_cAddr, p_kBlocks);	
 		}	
 		void
