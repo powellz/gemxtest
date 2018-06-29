@@ -53,9 +53,8 @@ def predict_fpga( args, test_data, num_classes, xclbin_prop):
     model = create_keras_model(test_data.values.shape[1], num_classes )
     model.load_weights(args.model)
     
-    fpga_rt = keras_rt.KerasRT(model, test_data.values.shape[0], g_wgt_scale, 
-                               xclbin_prop["GEMX_gemmMBlocks"],xclbin_prop["GEMX_gemmKBlocks"], xclbin_prop["GEMX_gemmNBlocks"] )
-    result = fpga_rt.predict(test_data.values, g_in_scale, g_post_scale)
+    fpga_rt = keras_rt.KerasRT(model, test_data.values.shape[0], g_wgt_scale, g_post_scale, xclbin_prop)
+    result = fpga_rt.predict(test_data.values, g_in_scale)
 
     #run softmax on CPU
     for i in range(result.shape[0]):
