@@ -1,14 +1,10 @@
 import numpy as np
 import gemx
-from test import GemmTest
+from gemxRT import GemxRT
 
 class KNearestNeighbor:
   """ a kNN classifier with L2 distance """
-
-  def __init__(self):
-    pass
-
-  def train(self, X, y):
+  def __init__(self, xclbin_opt, in_dim, wgt_scale, post_scale, X, y):
     """
     Train the classifier. For k-nearest neighbors this is just 
     memorizing the training data.
@@ -19,86 +15,41 @@ class KNearestNeighbor:
     """
     self.X_train = X
     self.y_train = y
-    
-  def predict(self, X, k=1, num_loops=0):
+    bias = np.zeroes( in_dim[0], self.X_train.shape[1])
+    self.gemxRT= GemxRT( X_train, bias, in_dim, [in_dim[0], self.X_train.shape[1]], wgt_scale, post_scale,
+                         xclbin_opt )
+
+  def predict(self, X, k=1):
     """
     Predict labels for test data using this classifier.
 
     Input:
     X - A num_test x dimension array where each row is a test point.
     k - The number of nearest neighbors that vote for predicted label
-    num_loops - Determines which method to use to compute distances
-                between training points and test points.
 
     Output:
     y - A vector of length num_test, where y[i] is the predicted label for the
         test point X[i, :].
     """
-    if num_loops == 0:
-      dists = self.compute_distances_no_loops(X)
-    elif num_loops == 1:
-      dists = self.compute_distances_one_loop(X)
-    elif num_loops == 2:
-      dists = self.compute_distances_two_loops(X)
-    else:
-      raise ValueError('Invalid value %d for num_loops' % num_loops)
+    dists = self.compute_dist(X)
 
     return self.predict_labels(dists, k=k)
 
-  def compute_distances_two_loops(self, X):
-    """
-    Compute the distance between each test point in X and each training point
-    in self.X_train using a nested loop over both the training data and the 
-    test data.
-
-    Input:
-    X - An num_test x dimension array where each row is a test point.
-
-    Output:
-    dists - A num_test x num_train array where dists[i, j] is the distance
-            between the ith test point and the jth training point.
-    """
-    num_test = X.shape[0]
-    num_train = self.X_train.shape[0]
-    dists = np.zeros((num_test, num_train))
-    print X.shape, self.X_train.shape
-    for i in xrange(num_test):
-      for j in xrange(num_train):
-
-        #####################################################################
-        # TODO:                                                             #
-        # Compute the l2 distance between the ith test point and the jth    #
-        # training point, and store the result in dists[i, j]               #
-        #####################################################################
-        dists[i, j] = np.sqrt(np.sum((X[i, :] - self.X_train[j, :]) ** 2))
-        #####################################################################
-        #                       END OF YOUR CODE                            #
-        #####################################################################
+  def compute_dist_fpga(self, X):
+    fpga_out = test.test_basic(0, X, self.X_train.T)
+    
+    test_sum = np.sum(np.square(X), axis=1) # num_test x 1
+    train_sum = np.sum(np.square(self.X_train), axis=1) # num_train x 1
+    inner_product = np.dot(X, self.X_train.T) # num_test x num_train
+    
+    inner_product = self.gemxRT.predict ()
+    dists = np.sqrt(-2 * inner_product + test_sum.reshape(-1, 1) + train_sum) # broadcast
+    #####################################################################
+    #                       END OF YOUR CODE                            #
+    #####################################################################
     return dists
 
-  def compute_distances_one_loop(self, X):
-    """
-    Compute the distance between each test point in X and each training point
-    in self.X_train using a single loop over the test data.
-
-    Input / Output: Same as compute_distances_two_loops
-    """
-    num_test = X.shape[0]
-    num_train = self.X_train.shape[0]
-    dists = np.zeros((num_test, num_train))
-    for i in xrange(num_test):
-      #######################################################################
-      # TODO:                                                               #
-      # Compute the l2 distance between the ith test point and all training #
-      # points, and store the result in dists[i, :].                        #
-      #######################################################################
-      dists[i, :] = np.sqrt(np.sum(np.square(self.X_train - X[i, :]), axis=1)) # broadcasting
-      #####################################################################
-      #                       END OF YOUR CODE                            #
-      #####################################################################
-    return dists
-
-  def compute_distances_no_loops(self, X):
+  def compute_dist(self, X):
     """
     Compute the distance between each test point in X and each training point
     in self.X_train using no explicit loops.
@@ -119,16 +70,6 @@ class KNearestNeighbor:
     #########################################################################
     # Output: sqrt((x-y)^2)
     # (x-y)^2 = x^2 + y^2 - 2xy
-    test=GemmTest()
-    args, xclbin_opts = gemx.processCommandLine()
-    gemx.createGEMMHandle(args, xclbin_opts)
-    
-    X_q = ...
-    
-    X_train_q = ...
-    
-    fpga_ou = test.test_basic(0, X, self.X_train.T)
-    
     test_sum = np.sum(np.square(X), axis=1) # num_test x 1
     train_sum = np.sum(np.square(self.X_train), axis=1) # num_train x 1
     inner_product = np.dot(X, self.X_train.T) # num_test x num_train
