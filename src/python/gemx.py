@@ -98,7 +98,7 @@ class GEMXManager:
     elif A.dtype == np.float32:
         self._lib.SendToFPGAFloat( A, c_ulonglong(A.size), c_uint(PE), sync_send ) 
     else:
-        raise TypeError("type", A, "not supported")
+        raise TypeError("type", A.dtype, "not supported")
       
   def sendSpMat(self,row,col,data,ddrWidth,dtype,PE):
      if dtype == np.int32:
@@ -116,7 +116,7 @@ class GEMXManager:
     elif A.dtype == np.float32:
         self._lib.GetFromFPGAFloat( A, PE, sync_get )
     else:
-        raise TypeError("type", A, "not supported") 
+        raise TypeError("type", A.dtype, "not supported") 
     
   def printStats(self):
     self._lib.PrintStats()
