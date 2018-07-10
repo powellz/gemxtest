@@ -66,6 +66,8 @@ class Pca {
 		static const unsigned int t_RowsInCblock = t_SpmvWidth * t_MacGroups * t_mVectorBlocks * t_DdrWidth;
 		static const unsigned int t_NumDdrPerSpmv = t_DdrWidth / t_SpmvWidth;
 		static const unsigned int t_DdrWordsPerBlock = t_SpmvWidth * t_MacGroups / t_DdrWidth;
+		static const unsigned int t_kVectorBlockWords = t_SpmvWidth * t_kVectorBlocks;
+		static const unsigned int t_kVectorBlockEntries = t_kVectorBlockWords * t_DdrWidth; 
 		Spmv<t_FloatType, t_FloatEqIntType, t_DdrWidth, t_SpmvWidth, t_kVectorBlocks, t_mVectorBlocks, t_MacGroups, t_ColAddIdxBits, t_NumCblocks, t_FloatPerDesc> m_Spmv;
 		t_FloatType m_Norm;
 		t_FloatType m_MinK;
@@ -76,25 +78,26 @@ class Pca {
 	
 	private:
 		void
-		normZeroOutB(DdrWideStreamType &p_inS, DdrWideStreamType &p_outS, unsigned int p_kBlocks) {
+		normZeroOutB(DdrWideStreamType &p_inS, DdrWideStreamType &p_outS, 
+			unsigned int p_kBlocks, t_FloatType p_norm, t_FloatType p_minK) {
 			LOOP_PCA_NORMB:for(unsigned int i=0; i<p_kBlocks; ++i) {
 			#pragma HLS PIPELINE REWIND
 				DdrWideType l_val, l_valZeroOut, l_valNorm;
 				p_inS.read(l_val);
 				for(unsigned int j=0; j<t_DdrWidth; ++j){
 					t_FloatType l_absVal = (l_val[j] < 0)? -l_val[j]: l_val[j];
-					if (l_absVal < m_MinK) {
+					if (l_absVal < p_minK) {
 						l_valZeroOut[j] = 0;
 					}
 					else {
 						l_valZeroOut[j] = l_val[j];
-						if (t_Debug_runPca) {
-							(m_MinK !=0) && std::cout << "DEBUG:normZeroOutB B[" <<i*t_DdrWidth+j<<"]="<<l_valZeroOut[j]<<std::endl;
-						}
+						//if (t_Debug_runPca) {
+							//(p_minK !=0) && std::cout << "DEBUG:normZeroOutB B[" <<i*t_DdrWidth+j<<"]="<<l_valZeroOut[j]<<std::endl;
+						//}
 					}
 
-					if (m_Norm !=0){
-						l_valNorm[j] = l_valZeroOut[j]/m_Norm;
+					if (p_norm !=0){
+						l_valNorm[j] = l_valZeroOut[j]/p_norm;
 					}
 					else {
 						l_valNorm[j] = l_valZeroOut[j];
@@ -283,7 +286,7 @@ class Pca {
 
 	public:
 		void
-		loadNormB(DdrWideType *p_bAddr, unsigned int p_kBlocks) {
+		loadNormB(DdrWideType *p_bAddr, unsigned int p_kBlocks, t_FloatType p_norm, t_FloatType p_minK) {
 		#pragma HLS DATAFLOW
 			DdrWideStreamType l_bS;
 			#pragma HLS DATA_PACK variable=l_bS
@@ -294,7 +297,7 @@ class Pca {
 			#pragma HLS STREAM variable=l_normBs depth=4	
 
 			m_Spmv.loadB2Stream(p_bAddr, l_bS, p_kBlocks);
-			normZeroOutB(l_bS, l_normBs, p_kBlocks);
+			normZeroOutB(l_bS, l_normBs, p_kBlocks, p_norm, p_minK);
 			m_Spmv.storeBFromStream(l_normBs, p_kBlocks);
 		}
 
@@ -325,53 +328,64 @@ class Pca {
 			#pragma HLS ARRAY_PARTITION variable=m_SortMem dim=1 complete	
 			assert(t_NumDdrPerTopK * t_DdrWidth == t_MaxTopK);
 
-			m_Norm = p_Norm;
-			m_MinK = p_MinK;
 			// Load entire B into BRAM
-			const unsigned int l_kBlocks = p_Args.m_K / t_DdrWidth;
-      assert(l_kBlocks * t_DdrWidth == p_Args.m_K);
-      assert(l_kBlocks <= t_kVectorBlocks * t_SpmvWidth);
-      DdrWideType *l_bAddr = p_DdrRd + p_Args.m_Boffset * DdrWideType::per4k();
+			const unsigned int l_kBlocks = p_Args.m_Bblocks;
 			unsigned int l_topK;
 			l_topK = p_Args.m_TopK;
-      loadNormB(l_bAddr, l_kBlocks); // in DDR units
-
 			// Load C block descriptors
 			const unsigned int l_Cblocks = p_Args.m_Cblocks;
-      const unsigned int l_descDdrWords = (l_Cblocks + t_numDescPerDdr - 1) / t_numDescPerDdr;
-      DdrWideType *l_dAddr = p_DdrRd + p_Args.m_Aoffset * DdrWideType::per4k();
-      m_Spmv.loadD(l_dAddr, l_descDdrWords);  // in descriptor units
-			m_Norm = 0;
-			for (unsigned int l_Cblock = 0; l_Cblock < l_Cblocks; ++l_Cblock) {
-				SpmvAdesc l_desc = m_Spmv.getDesc(l_Cblock);
-				unsigned int l_nnz = l_desc.getNnz();
-				const unsigned int t_mgdBlocks = t_RowsInCblock / (t_SpmvWidth * t_MacGroups);
-				assert(t_mgdBlocks *  (t_SpmvWidth * t_MacGroups) == t_RowsInCblock);
-				const unsigned int l_mgdBlocks = (l_Cblock < l_Cblocks - 1) ?
-																						t_mgdBlocks :
-																						(p_Args.m_M % t_RowsInCblock) / (t_SpmvWidth * t_MacGroups);
-				assert((l_mgdBlocks == t_mgdBlocks) ||
-							 (l_mgdBlocks *  (t_SpmvWidth * t_MacGroups) == (p_Args.m_M % t_RowsInCblock)));
+			
+			const unsigned int l_descDdrWords = (l_kBlocks*l_Cblocks + t_numDescPerDdr - 1) / t_numDescPerDdr;
+			DdrWideType *l_dAddr = p_DdrRd + p_Args.m_Aoffset * DdrWideType::per4k();
+			m_Spmv.loadD(l_dAddr, l_descDdrWords);  // in descriptor units
+			for (unsigned int l_Bblock=0; l_Bblock < l_kBlocks; ++l_Bblock) {
+				DdrWideType *l_bAddr = p_DdrRd + p_Args.m_Boffset * DdrWideType::per4k() + l_Bblock * t_kVectorBlockWords;
+				const unsigned int l_kLoadBlocks = (l_Bblock < l_kBlocks-1)?
+																					t_kVectorBlockWords: (p_Args.m_K % t_kVectorBlockEntries) / t_DdrWidth;
+				loadNormB(l_bAddr, l_kLoadBlocks, p_Norm, p_MinK); // in DDR units
 
-				// Load C
-				DdrWideType *l_cAddr = p_DdrWr + p_Args.m_Coffset * DdrWideType::per4k() +
-															 l_Cblock * (t_RowsInCblock / t_DdrWidth) ;
-				m_Spmv.initC(l_mgdBlocks);
+				m_Norm = 0;
+				for (unsigned int l_Cblock = 0; l_Cblock < l_Cblocks; ++l_Cblock) {
+					SpmvAdesc l_desc = m_Spmv.getDesc(l_Bblock*l_Cblocks+l_Cblock);
+					unsigned int l_nnz = l_desc.getNnz();
+					const unsigned int t_mgdBlocks = t_RowsInCblock / (t_SpmvWidth * t_MacGroups);
+					assert(t_mgdBlocks *  (t_SpmvWidth * t_MacGroups) == t_RowsInCblock);
+					const unsigned int l_mgdBlocks = (l_Cblock < l_Cblocks - 1) ?
+																							t_mgdBlocks :
+																							(p_Args.m_M % t_RowsInCblock) / (t_SpmvWidth * t_MacGroups);
+					assert((l_mgdBlocks == t_mgdBlocks) ||
+								 (l_mgdBlocks *  (t_SpmvWidth * t_MacGroups) == (p_Args.m_M % t_RowsInCblock)));
 
-				unsigned int l_blockAoffset = l_desc.getOffset();
-				DdrWideType *l_aAddr = p_DdrRd + (p_Args.m_Aoffset + p_Args.m_DescPages + l_blockAoffset) *
-															 DdrWideType::per4k();
-				const unsigned int l_numWordsA = l_nnz * t_NumDdrPerSpmv / t_DdrWidth;
-				assert(l_numWordsA * t_DdrWidth == l_nnz * t_NumDdrPerSpmv);
-				m_Spmv.multA(l_aAddr, l_numWordsA);
+					// Load C
+					DdrWideType *l_cAddr = p_DdrWr + p_Args.m_Coffset * DdrWideType::per4k() +
+																 l_Cblock * (t_RowsInCblock / t_DdrWidth) ;
 
-				// Store C
-				storeCandCalcNorm(l_cAddr, l_mgdBlocks, l_Cblock);
+					if (l_Bblock == 0) {
+						m_Spmv.initC(l_mgdBlocks);
+					}
+					else {
+						m_Spmv.loadC(l_cAddr, l_mgdBlocks);
+					}
+
+					unsigned int l_blockAoffset = l_desc.getOffset();
+					DdrWideType *l_aAddr = p_DdrRd + (p_Args.m_Aoffset + p_Args.m_DescPages + l_blockAoffset) *
+																 DdrWideType::per4k();
+					const unsigned int l_numWordsA = l_nnz * t_NumDdrPerSpmv / t_DdrWidth;
+					assert(l_numWordsA * t_DdrWidth == l_nnz * t_NumDdrPerSpmv);
+					m_Spmv.multA(l_aAddr, l_numWordsA);
+
+					// Store C
+					storeCandCalcNorm(l_cAddr, l_mgdBlocks, l_Cblock);
+				}
+				if (l_Bblock == l_kBlocks-1) {
+					getMinK(l_Cblocks, l_topK);
+				}
 			}
-			getMinK(l_Cblocks, l_topK);
 			p_Norm = hls::sqrtf(m_Norm);
 			p_MinK = m_MinK;
 			if (t_Debug_runPca) {
+				std::cout << "DEBUG:runPca " << "m_Bblocks =" << p_Args.m_Bblocks << std::endl;
+				std::cout << "DEBUG:runPca " << "m_Cblocks =" << p_Args.m_Cblocks << std::endl;
 				std::cout << "DEBUG:runPca " << "p_Norm = " << std::setw(GEMX_FLOAT_WIDTH) << p_Norm << std::endl;
 				std::cout << "DEBUG:runPca " << "p_Mink = " << std::setw(GEMX_FLOAT_WIDTH) << p_MinK << std::endl;
 			}

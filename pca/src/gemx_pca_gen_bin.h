@@ -233,7 +233,6 @@ class Program {
           l_startPage = l_desc.m_StartPage;
           p_NewAlloc = false;
         }
-        //std::cout << "  DEBUG allocPages Start page for " << p_Handle << " is " << l_startPage << "\n";
         return(l_startPage);
       }
     t_FloatType *
@@ -328,8 +327,9 @@ class SpMat
     static const unsigned int t_numDescPerPage = SpmvAdescType::t_per4k;
     static const unsigned int t_numDdrWordsPerPage = SpmvType::DdrWideType::t_per4k;
     static const unsigned int t_RowsInCblock = SpmvType::t_RowsInCblock;
+		static const unsigned int t_ColsInBblock = GEMX_spmvWidth * GEMX_spmvkVectorBlocks * GEMX_ddrWidth;
   private:
-    unsigned int m_Rows, m_Cols, m_Nnz, m_Cblocks,
+    unsigned int m_Rows, m_Cols, m_Nnz, m_Bblocks, m_Cblocks,
                  m_AstartIdx = GEMX_spmvNumCblocks * t_numDescPerPage / t_numSpmvPerPage;
     union {
       Tddr *Ddr;
@@ -339,8 +339,8 @@ class SpMat
   public:
     	SpMat()
 	{}
-    SpMat(unsigned int p_Rows, unsigned int p_Cols, unsigned int p_Nnz, unsigned int p_Cblocks, Tddr *p_Addr)
-      : m_Rows(p_Rows), m_Cols(p_Cols), m_Nnz(p_Nnz), m_Cblocks(p_Cblocks) {
+    SpMat(unsigned int p_Rows, unsigned int p_Cols, unsigned int p_Nnz, unsigned int p_Bblocks, unsigned int p_Cblocks, Tddr *p_Addr)
+      : m_Rows(p_Rows), m_Cols(p_Cols), m_Nnz(p_Nnz), m_Bblocks(p_Bblocks), m_Cblocks(p_Cblocks) {
         m_Addr.Ddr = p_Addr;
         0 && std::cout << "DEBUG: sizeof(Tddr)=" << sizeof(Tddr)
                   << "  SpmvType::getDdrWidth()=" << SpmvType::getDdrWidth()
@@ -364,6 +364,8 @@ class SpMat
     inline unsigned int rows() {return m_Rows;}
     inline unsigned int cols() {return m_Cols;}
     inline unsigned int nnz() {return m_Nnz;}
+		inline unsigned int cblocks() {return m_Cblocks;}
+		inline unsigned int bblocks() {return m_Bblocks;}
 
     inline SpmvAdescType &getDesc(unsigned int p_Cblock) {
         assert(p_Cblock < GEMX_spmvNumCblocks);
@@ -374,10 +376,11 @@ class SpMat
         return m_Addr.Mat[m_AstartIdx + p_Idx];
       }
     void 
-    init(unsigned int p_Rows, unsigned int p_Cols, unsigned int p_Nnz, unsigned int p_Cblocks, Tddr *p_Addr){
+    init(unsigned int p_Rows, unsigned int p_Cols, unsigned int p_Nnz, unsigned int p_Bblocks, unsigned int p_Cblocks, Tddr *p_Addr){
 		m_Rows = p_Rows;
 		m_Cols = p_Cols;
 		m_Nnz = p_Nnz;
+		m_Bblocks = p_Bblocks;
 		m_Cblocks = p_Cblocks;
 		m_Addr.Ddr = p_Addr;
     
@@ -409,201 +412,137 @@ class SpMat
             row--;
           }
         }
-        fillFromVector(l_rows);
+        fillFromNnz(l_rows);
       }
-    void
-    fillFromVector(std::vector<MtxRow> p_Rows) {
-        assert(p_Rows.size() ==  nnz());
-        
-        // Partition the matrix
-        std::vector<std::vector<MtxRow>> l_part;
-        l_part.reserve(GEMX_spmvNumCblocks);
-        for (unsigned int i = 0; i < m_Nnz; ++i) {
-          MtxRow l_row = p_Rows[i];
-          unsigned int l_cBlock = l_row.getRow() / t_RowsInCblock;
-          if (l_cBlock >= l_part.size()) {
-            l_part.resize(l_cBlock + 1);
-          }
-          l_part[l_cBlock].push_back(l_row);
-        }
-        m_Cblocks = l_part.size();
-        
-        // Pad each partition nnzs to align with ddr width
-        const unsigned int l_spmvAlignNnz = GEMX_spmvWidth;
-        for (unsigned int l_cBlock = 0; l_cBlock < m_Cblocks; ++l_cBlock) {
-          unsigned int l_nnz = l_part[l_cBlock].size();
-          unsigned int l_nnzAligned =l_spmvAlignNnz * ((l_nnz + l_spmvAlignNnz - 1) / l_spmvAlignNnz);
-          assert(l_nnzAligned >= l_nnz);
-          l_part[l_cBlock].resize(l_nnzAligned);
-        }
-        
-        // Break long rows
-        const unsigned int l_rowUnits = GEMX_spmvWidth * GEMX_spmvMacGroups;
-        for (unsigned int l_cBlock = 0; l_cBlock < m_Cblocks; ++l_cBlock) {
-          std::array<std::queue<MtxRow>, l_rowUnits> l_rowQueues;
-          // Separate per row unit
-          unsigned int l_nnz = l_part[l_cBlock].size();
-          for(auto & l_row : l_part[l_cBlock]) {
-            l_rowQueues[l_row.getRow() % l_rowUnits].push(l_row);
-          }
-          l_part[l_cBlock].clear();
-          // Aggregate to max row length
-          const unsigned int l_rowBreak = 16; // This should roughly match the smallest chain of t_FifoDepthDeep
-          unsigned int l_doneNnzs = 0;
-          while (l_doneNnzs < l_nnz) {
-            for (unsigned int l_rowUnit = 0 ; l_rowUnit < l_rowUnits; l_rowUnit++) {
-              for (unsigned int i = 0 ; i < l_rowBreak; i++) {
-                if (l_rowQueues[l_rowUnit].empty()) {
-                  break;
-                } else {
-                  l_part[l_cBlock].push_back(l_rowQueues[l_rowUnit].front());
-                  l_rowQueues[l_rowUnit].pop();
-                  l_doneNnzs++;
-                }
-              }
-            }
-          }
-        }
-        
-        // Create block descriptors
-        unsigned int l_startIdx = 0;
-        for (unsigned int l_cBlock = 0; l_cBlock < m_Cblocks; ++l_cBlock) {
-          unsigned int l_nnz = l_part[l_cBlock].size();
-          SpmvAdescType l_desc(l_nnz, l_startIdx / t_numSpmvPerPage);
-          getDesc(l_cBlock) = l_desc;
-          l_startIdx += l_nnz;
-          // Align start to 4kB
-          while ((l_startIdx % t_numSpmvPerPage) != 0) {
-            l_startIdx++;
-          }
-        }
-        std::cout << "INFO: Spmv fillFromVector number of partitions " << m_Cblocks << "\n";
-        
-        // Fill the A matrix data
-        unsigned int is = 0, l_rowCblock = 0;
-        for (unsigned int l_cBlock = 0; l_cBlock < l_part.size(); ++l_cBlock) {
-          SpmvAdescType l_desc = getDesc(l_cBlock);
-          for (unsigned int i = 0; i < l_desc.getNnz(); ++i) {
-            MtxRow l_row = l_part[l_cBlock][i];
-            Tmat l_m(Tddr(l_row.getVal()), l_row.getRow() % t_RowsInCblock, l_row.getCol());
-            TmatD l_mD = l_m.getAsAd();
-            getVal(l_desc.getOffset() * t_numSpmvPerPage + i) = l_mD;
-            
-            0 && std::cout << "  DEBUG fillFromVector"
-                      << "  l_cBlock=" << l_cBlock
-                      << "  i=" << i
-                      << "  l_m = " << l_m
-                      << "  l_D = " << l_mD
-                      << "\n";
-          }
-        }
-      }
-    void
+    
+		void
     fillFromNnz(std::vector<MtxRow> p_Rows) {
         assert(p_Rows.size() ==  nnz());
-        sort(p_Rows.begin(), p_Rows.end()); 
-        // Partition the matrix
-        std::vector<std::vector<MtxRow>> l_part;
-        l_part.reserve(GEMX_spmvNumCblocks);
-        for (unsigned int i = 0; i < m_Nnz; ++i) {
-          MtxRow l_row = p_Rows[i];
-          unsigned int l_cBlock = l_row.getRow() / t_RowsInCblock;
-          if (l_cBlock >= l_part.size()) {
-            l_part.resize(l_cBlock + 1);
-          }
-          l_part[l_cBlock].push_back(l_row);
-        }
-        m_Cblocks = l_part.size();
+				m_Cblocks = (m_Rows + t_RowsInCblock -1 ) / t_RowsInCblock;
+				m_Bblocks = (m_Cols + t_ColsInBblock -1 ) / t_ColsInBblock;
+
+       	std::vector<std::vector<MtxRow>> l_rowBlocks;
+				l_rowBlocks.resize(m_Bblocks);
+
+				for (auto & l_row: p_Rows) {
+					unsigned int l_block = l_row.getCol() / t_ColsInBblock;
+					l_rowBlocks[l_block].push_back(l_row);
+				}
+
+
+				unsigned int l_startIdx = 0;
+				for (unsigned int l_bBlock=0; l_bBlock<m_Bblocks; ++l_bBlock) {
+					sort(l_rowBlocks[l_bBlock].begin(), l_rowBlocks[l_bBlock].end());
+					// Partition the matrix
+					std::vector<std::vector<MtxRow>> l_part;
+					l_part.reserve(GEMX_spmvNumCblocks);
+					for (unsigned int i = 0; i < l_rowBlocks[l_bBlock].size(); ++i) {
+						MtxRow l_row = l_rowBlocks[l_bBlock][i];
+						unsigned int l_cBlock = l_row.getRow() / t_RowsInCblock;
+						if (l_cBlock >= l_part.size()) {
+							l_part.resize(l_cBlock + 1);
+						}
+						l_part[l_cBlock].push_back(l_row);
+					}
+					unsigned int l_Cblocks = l_part.size();
         
-        // Pad each partition nnzs to align with ddr width
-        const unsigned int l_spmvAlignNnz = GEMX_spmvWidth;
-        for (unsigned int l_cBlock = 0; l_cBlock < m_Cblocks; ++l_cBlock) {
-          unsigned int l_nnz = l_part[l_cBlock].size();
-          unsigned int l_nnzAligned =l_spmvAlignNnz * ((l_nnz + l_spmvAlignNnz - 1) / l_spmvAlignNnz);
-          assert(l_nnzAligned >= l_nnz);
-          l_part[l_cBlock].resize(l_nnzAligned);
-        }
+					// Pad each partition nnzs to align with ddr width
+					const unsigned int l_spmvAlignNnz = GEMX_spmvWidth;
+					for (unsigned int l_cBlock = 0; l_cBlock < l_Cblocks; ++l_cBlock) {
+						unsigned int l_nnz = l_part[l_cBlock].size();
+						unsigned int l_nnzAligned =l_spmvAlignNnz * ((l_nnz + l_spmvAlignNnz - 1) / l_spmvAlignNnz);
+						assert(l_nnzAligned >= l_nnz);
+						l_part[l_cBlock].resize(l_nnzAligned);
+					}
         
-        // Break long rows
-        const unsigned int l_rowUnits = GEMX_spmvWidth * GEMX_spmvMacGroups;
-        for (unsigned int l_cBlock = 0; l_cBlock < m_Cblocks; ++l_cBlock) {
-          std::array<std::queue<MtxRow>, l_rowUnits> l_rowQueues;
-          // Separate per row unit
-          unsigned int l_nnz = l_part[l_cBlock].size();
-          for(auto & l_row : l_part[l_cBlock]) {
-            l_rowQueues[l_row.getRow() % l_rowUnits].push(l_row);
-          }
-          l_part[l_cBlock].clear();
-          // Aggregate to max row length
-          const unsigned int l_rowBreak = 16; // This should roughly match the smallest chain of t_FifoDepthDeep
-          unsigned int l_doneNnzs = 0;
-          while (l_doneNnzs < l_nnz) {
-            for (unsigned int l_rowUnit = 0 ; l_rowUnit < l_rowUnits; l_rowUnit++) {
-              for (unsigned int i = 0 ; i < l_rowBreak; i++) {
-                if (l_rowQueues[l_rowUnit].empty()) {
-                  break;
-                } else {
-                  l_part[l_cBlock].push_back(l_rowQueues[l_rowUnit].front());
-                  l_rowQueues[l_rowUnit].pop();
-                  l_doneNnzs++;
-                }
-              }
-            }
-          }
-        }
+					// Break long rows
+					const unsigned int l_rowUnits = GEMX_spmvWidth * GEMX_spmvMacGroups;
+					for (unsigned int l_cBlock = 0; l_cBlock < l_Cblocks; ++l_cBlock) {
+						std::array<std::queue<MtxRow>, l_rowUnits> l_rowQueues;
+						// Separate per row unit
+						unsigned int l_nnz = l_part[l_cBlock].size();
+						for(auto & l_row : l_part[l_cBlock]) {
+							l_rowQueues[l_row.getRow() % l_rowUnits].push(l_row);
+						}
+						l_part[l_cBlock].clear();
+						// Aggregate to max row length
+						const unsigned int l_rowBreak = 16; // This should roughly match the smallest chain of t_FifoDepthDeep
+						unsigned int l_doneNnzs = 0;
+						while (l_doneNnzs < l_nnz) {
+							for (unsigned int l_rowUnit = 0 ; l_rowUnit < l_rowUnits; l_rowUnit++) {
+								for (unsigned int i = 0 ; i < l_rowBreak; i++) {
+									if (l_rowQueues[l_rowUnit].empty()) {
+										break;
+									} else {
+										l_part[l_cBlock].push_back(l_rowQueues[l_rowUnit].front());
+										l_rowQueues[l_rowUnit].pop();
+										l_doneNnzs++;
+									}
+								}
+							}
+						}
+					}
         
-        // Create block descriptors
-        unsigned int l_startIdx = 0;
-        for (unsigned int l_cBlock = 0; l_cBlock < m_Cblocks; ++l_cBlock) {
-          unsigned int l_nnz = l_part[l_cBlock].size();
-          for (unsigned int i = 0; i < l_nnz; ++i) {
-            MtxRow l_row = l_part[l_cBlock][i];
-            Tmat l_m(Tddr(l_row.getVal()), l_row.getRow() % t_RowsInCblock, l_row.getCol());
-            TmatD l_mD = l_m.getAsAd();
-            getVal(l_startIdx + i) = l_mD;
-            
-            0 && std::cout << "  DEBUG fillFromVector"
-                      << "  l_cBlock=" << l_cBlock
-                      << "  i=" << i
-                      << "  l_m = " << l_m
-                      << "  l_D = " << l_mD
-                      << "\n";
-          }
-          SpmvAdescType l_desc(l_nnz, l_startIdx / t_numSpmvPerPage);
-          getDesc(l_cBlock) = l_desc;
-          l_startIdx += l_nnz;
-          // Align start to 4kB
-          while ((l_startIdx % t_numSpmvPerPage) != 0) {
-            l_startIdx++;
-          }
-        }
-        std::cout << "INFO: Spmv fillFromVector number of partitions " << m_Cblocks << "\n";
+					// Create block descriptors
+					for (unsigned int l_cBlock = 0; l_cBlock < l_Cblocks; ++l_cBlock) {
+						unsigned int l_nnz = l_part[l_cBlock].size();
+						for (unsigned int i = 0; i < l_nnz; ++i) {
+							MtxRow l_row = l_part[l_cBlock][i];
+							Tmat l_m(Tddr(l_row.getVal()), l_row.getRow() % t_RowsInCblock, l_row.getCol() % t_ColsInBblock);
+
+							TmatD l_mD = l_m.getAsAd();
+							getVal(l_startIdx + i) = l_mD;
+							
+							0 && std::cout << "  DEBUG fillFromNnz"
+												<< "  l_cBlock=" << l_cBlock
+												<< "  i=" << i
+												<< "  l_m = " << l_m
+												<< "  l_D = " << l_mD
+												<< "\n";
+						}
+						SpmvAdescType l_desc(l_nnz, l_startIdx / t_numSpmvPerPage);
+						getDesc(l_bBlock * m_Cblocks + l_cBlock) = l_desc;
+					
+						l_startIdx += l_nnz;
+						// Align start to 4kB
+						while ((l_startIdx % t_numSpmvPerPage) != 0) {
+							l_startIdx++;
+						}
+					}
+					if (l_Cblocks < m_Cblocks) {
+						SpmvAdescType l_emptyDesc(0,0);
+						for (unsigned int i=l_Cblocks; i<m_Cblocks; ++i) {
+							getDesc(l_bBlock * m_Cblocks + i) = l_emptyDesc;
+						}
+					}
+        	std::cout << "INFO: Spmv fillFromNnz number of partitions " << m_Bblocks * m_Cblocks << "\n";
+				}
       }
 
     std::vector<MtxRow>
     getNnzVector() {
         std::vector<MtxRow> l_rows;
-				0 && std::cout << "DEBUG::getNnzVector: m_Cblocks = " << m_Cblocks << std::endl;
-        for (unsigned int l_cBlock = 0; l_cBlock < m_Cblocks; ++l_cBlock) {
-          SpmvAdescType l_desc = getDesc(l_cBlock);
-					0 && std::cout << "DEBUG::nnz=" << l_desc.getNnz() << "\n";
-          for (unsigned int i = 0; i < l_desc.getNnz(); ++i) {
-            typename SpMat::SpmvAdType l_Ad = getVal(l_desc.getOffset() * t_numSpmvPerPage + i);
-            typename SpMat::SpmvAType l_A(l_Ad);
-            unsigned int row = l_A.getRow(),
-                         col = l_A.getCol();
-            if (l_A.getA() != 0) {
-              MtxRow l_mr(l_A.getA(), l_cBlock * t_RowsInCblock + row, col);
-              l_rows.push_back(l_mr);
-            }
-            0 && std::cout << "  DEBUG getNnzVector"
-                      << "  l_cBlock=" << l_cBlock
-                      << "  i=" << i
-                      << "  l_m = " << l_A
-                      << "  l_D = " << l_Ad
-                      << "\n";
-          }
-        }
+				for (unsigned int l_bBlock = 0; l_bBlock < m_Bblocks; ++l_bBlock) {
+					for (unsigned int l_cBlock = 0; l_cBlock < m_Cblocks; ++l_cBlock) {
+						SpmvAdescType l_desc = getDesc(l_bBlock * m_Cblocks + l_cBlock);
+						for (unsigned int i = 0; i < l_desc.getNnz(); ++i) {
+							typename SpMat::SpmvAdType l_Ad = getVal(l_desc.getOffset() * t_numSpmvPerPage + i);
+							typename SpMat::SpmvAType l_A(l_Ad);
+							unsigned int row = l_A.getRow(),
+													 col = l_A.getCol();
+							if (l_A.getA() != 0) {
+								MtxRow l_mr(l_A.getA(), l_cBlock * t_RowsInCblock + row, l_bBlock * t_ColsInBblock + col);
+								l_rows.push_back(l_mr);
+							}
+							0 && std::cout << "  DEBUG getNnzVector"
+												<< "  l_cBlock=" << l_cBlock
+												<< "  i=" << i
+												<< "  l_m = " << l_A
+												<< "  l_D = " << l_Ad
+												<< "\n";
+						}
+					}
+				}
         return(l_rows);
       }
     
@@ -612,19 +551,21 @@ class SpMat
         os << "%%MatrixMarket matrix coordinate real general\n"
            << "% Rows Columns Entries\n";
         os << rows() << "  " << cols() << "  " << nnz() << "\n";
-        for (unsigned int l_cBlock = 0; l_cBlock < m_Cblocks; ++l_cBlock) {
-          SpmvAdescType l_desc = getDesc(l_cBlock);
-          for (unsigned int i = 0; i < l_desc.getNnz(); ++i) {
-            typename SpMat::SpmvAdType l_Ad = getVal(l_desc.getOffset() * t_numSpmvPerPage + i);
-            typename SpMat::SpmvAType l_A(l_Ad);
-            unsigned int row = l_A.getRow(),
-                         col = l_A.getCol();
-            //os << l_Ad << " Ad\n";
-            //os << l_A << " A\n\n";
-            MtxRow l_mr(l_A.getA(), l_cBlock * t_RowsInCblock + row + 1, col + 1);
-            os << l_mr << "\n";
-          }
-        }
+				for (unsigned int l_bBlock = 0; l_bBlock < m_Bblocks; ++l_bBlock) {
+					for (unsigned int l_cBlock = 0; l_cBlock < m_Cblocks; ++l_cBlock) {
+						SpmvAdescType l_desc = getDesc(l_bBlock * m_Cblocks + l_cBlock);
+						for (unsigned int i = 0; i < l_desc.getNnz(); ++i) {
+							typename SpMat::SpmvAdType l_Ad = getVal(l_desc.getOffset() * t_numSpmvPerPage + i);
+							typename SpMat::SpmvAType l_A(l_Ad);
+							unsigned int row = l_A.getRow(),
+													 col = l_A.getCol();
+							//os << l_Ad << " Ad\n";
+							//os << l_A << " A\n\n";
+							MtxRow l_mr(l_A.getA(), l_cBlock * t_RowsInCblock + row + 1, l_bBlock * t_ColsInBblock + col + 1);
+							os << l_mr << "\n";
+						}
+					}
+				}
       }
 };
 template <typename T1, typename T2, typename T3>
@@ -638,7 +579,7 @@ template < typename T, typename TspD, typename Tsp>
 class Mat
 {
 	private:
-		static const unsigned int t_MaxTopK=256;
+		static const unsigned int t_MaxTopK=32;
   private:
     unsigned int m_Rows, m_Cols, m_Ld; 
     T *m_Addr;
@@ -714,7 +655,6 @@ class Mat
             for (unsigned int k = 0; k < p_A.cols(); ++k) {
               l_val += p_A.getVal(row, k) * p_B.getVal(k, col);
             }
-            //std::cout << "    DEBUG multiply setting row=" << row << " col=" << col << std::endl;
             getVal(row, col) = l_val;
           }
         }
@@ -770,19 +710,21 @@ class Mat
 					T l_val = getVal(i,0);
 					T l_tmp = l_val * l_val;
 					p_Norm += l_tmp;
-         	t_Debug_host && std::cout << "DEBUG pcaSpmv add entry " << i << " with value " << l_val << " and square " << l_tmp << " =  " << p_Norm << std::endl;
-        	for (unsigned int j=0; j<p_TopK; ++j) {
-						if (abs(l_val) > l_topKs[j]) {
-							for (unsigned int k=p_TopK-1; k>j; --k){
-								l_topKs[k] = l_topKs[k-1];
-							}
-							l_topKs[j] = abs(l_val);
-							break;
+					unsigned int j=0;
+					while ((j<p_TopK) && (abs(l_val) < l_topKs[j])){
+						j++;
+					}
+					if ((j<p_TopK) && (abs(l_val) > l_topKs[j])) {
+						for (unsigned int k=p_TopK-1; k>j; --k){
+							l_topKs[k] = l_topKs[k-1];
 						}
+						l_topKs[j] = abs(l_val);
 					}
 				}
 				p_Norm = sqrt(p_Norm);
 				p_MinK = l_topKs[p_TopK-1];
+				t_Debug_host && std::cout << "DEBUG:Host m_Bblocks = " << p_A.bblocks() << "\n";
+				t_Debug_host && std::cout << "DEBUG:Host m_Cblocks = " << p_A.cblocks() << "\n";
 				t_Debug_host && std::cout << "DEBUG:Host p_Norm = " << std::setw(GEMX_FLOAT_WIDTH) << std::fixed << std::setprecision(6) << p_Norm << "\n";
 				t_Debug_host && std::cout << "DEBUG:Host p_MinK = " << std::setw(GEMX_FLOAT_WIDTH) << std::fixed << std::setprecision(6) << p_MinK << "\n";
 				for (unsigned int i=0; i<t_MaxTopK; ++i) {
@@ -934,7 +876,7 @@ SpMatType_ForFloat::fillMod(float p_Value, float p_Max) {
       row--;
     }
   }
-  fillFromVector(l_rows);
+  fillFromNnz(l_rows);
 }
 
 
@@ -1099,11 +1041,11 @@ class GenPca
                     << "   Recompile the kernel with larger GEMX_spmvmVectorBlocks\n";
           ok = false;
         }
-        if (p_K > l_kMax) {
-          std::cerr << "ERROR: spmv  K dimension " << p_K << " is larger than max supported " << l_kMax
-                    << "  Recompile the kernel with larger GEMX_spmvkVectorBlocks\n";
-          ok = false;
-        }             
+//        if (p_K > l_kMax) {
+//          std::cerr << "ERROR: spmv  K dimension " << p_K << " is larger than max supported " << l_kMax
+//                    << "  Recompile the kernel with larger GEMX_spmvkVectorBlocks\n";
+//          ok = false;
+//        }             
         return(ok);
       }
 
@@ -1125,6 +1067,9 @@ class GenPca
     
     // Allocate all pages before getting any address
     bool l_newAllocA, l_newAllocB, l_newAllocC, l_newAllocD;
+    // Large matrix support
+    unsigned int l_Cblocks = (p_M + SpmvType::getRowsInCblock() - 1) / SpmvType::getRowsInCblock();
+		unsigned int l_Bblocks = (p_K + SpMatType::t_ColsInBblock-1) / SpMatType::t_ColsInBblock;
     // A, D; Descriptors simply prefix the A body
     const unsigned int l_numDescPages = (GEMX_spmvNumCblocks + SpMatType::t_numDescPerPage - 1) /
                                         SpMatType::t_numDescPerPage;
@@ -1135,6 +1080,7 @@ class GenPca
                                                 l_numDescDdrWords * GEMX_ddrWidth +
                                                 p_Nnz * GEMX_ddrWidth / GEMX_spmvWidth +
                                                 l_numPaddingDdrWords * GEMX_ddrWidth);
+
     // B, C
     unsigned int l_pageB = p_Program.allocPages(p_handleB, l_newAllocB, p_K * 1);
     unsigned int l_pageC = p_Program.allocPages(p_handleC, l_newAllocC, p_M * 1);
@@ -1144,17 +1090,15 @@ class GenPca
     //MatType l_matB(p_K, 1, 1,       p_Program.getPageAddr(l_pageB));
     //MatType l_matC(p_M, 1, 1,       p_Program.getPageAddr(l_pageC));
     
-    // Large matrix support
-    unsigned int l_Cblocks = (p_M + SpmvType::getRowsInCblock() - 1) / SpmvType::getRowsInCblock();
     // Get addresses where matrices are stored
-    SpMatType l_matA(p_M, p_K, p_Nnz, l_Cblocks, p_Program.getPageAddr(l_pageA));
+    SpMatType l_matA(p_M, p_K, p_Nnz, l_Bblocks, l_Cblocks, p_Program.getPageAddr(l_pageA));
     MatType l_matB(p_K, 1, 1,       p_Program.getPageAddr(l_pageB));
     MatType l_matC(p_M, 1, 1,       p_Program.getPageAddr(l_pageC));
     
     // Instruction
     PcaArgsType l_pcaArgs(
         l_pageA, l_pageB, l_pageC,
-        p_M, p_K, p_Nnz, p_TopK, l_Cblocks, l_numDescPages
+        p_M, p_K, p_Nnz, p_TopK, l_Bblocks, l_Cblocks, l_numDescPages
       );
     PcaKargsType l_kargs;
     l_kargs.setPcaArgs(l_pcaArgs);
@@ -1162,7 +1106,6 @@ class GenPca
     
     if (l_newAllocA) {
       if (p_MtxFile.good()) {
-        //l_matA.fillFromVector(p_MtxFile.getRows());
         l_matA.fillFromNnz(p_MtxFile.getRows());
       } else {
         l_matA.fillMod(17);
@@ -1177,7 +1120,6 @@ class GenPca
       l_matC.pcaSpmv(l_matA, l_matB, p_Norm, p_MinK, p_TopK);
     }
     std::cout << "Added SPMV " << p_M << "x" << p_K << " Nnz=" << p_Nnz << "  ";
-    //std::cout << "DEBUG A:\n" << l_matA << "\n";
   }
   
   void
@@ -1188,8 +1130,9 @@ class GenPca
       unsigned int l_M = p_PcaArgs.m_M,
                    l_K = p_PcaArgs.m_K,
                    l_Nnz = p_PcaArgs.m_Nnz,
+									 l_Bblocks = p_PcaArgs.m_Bblocks,
                    l_Cblocks = p_PcaArgs.m_Cblocks;
-      SpMatType l_matA(l_M, l_K, l_Nnz, l_Cblocks, p_Program.getPageAddr(p_PcaArgs.m_Aoffset));
+      SpMatType l_matA(l_M, l_K, l_Nnz, l_Bblocks, l_Cblocks, p_Program.getPageAddr(p_PcaArgs.m_Aoffset));
       MatType l_matB(l_K, 1,   1,   p_Program.getPageAddr(p_PcaArgs.m_Boffset));
       MatType l_matC(l_M, 1,   1,   p_Program.getPageAddr(p_PcaArgs.m_Coffset));
       std::cout << "\n###########  Op Spmv  ###########\n"

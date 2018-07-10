@@ -50,15 +50,15 @@ namespace gemx {
 class PcaArgs {
   public:
     unsigned int m_Aoffset, m_Boffset, m_Coffset,
-                 m_M, m_K, m_Nnz, m_TopK, m_Cblocks, m_DescPages;
+                 m_M, m_K, m_Nnz, m_TopK, m_Bblocks, m_Cblocks, m_DescPages;
   public:
     PcaArgs() {}
     PcaArgs(
         unsigned int p_Aoffset, unsigned int p_Boffset, unsigned int p_Coffset,
-        unsigned int p_M, unsigned int p_K, unsigned int p_Nnz, unsigned int p_TopK, unsigned int p_Cblocks,
+        unsigned int p_M, unsigned int p_K, unsigned int p_Nnz, unsigned int p_TopK, unsigned int p_Bblocks, unsigned int p_Cblocks,
         unsigned int p_DescPages
       ) : m_Aoffset(p_Aoffset), m_Boffset(p_Boffset),  m_Coffset(p_Coffset),
-          m_M(p_M), m_K(p_K), m_Nnz(p_Nnz), m_TopK(p_TopK), m_Cblocks(p_Cblocks), m_DescPages(p_DescPages)
+          m_M(p_M), m_K(p_K), m_Nnz(p_Nnz), m_TopK(p_TopK), m_Bblocks(p_Bblocks), m_Cblocks(p_Cblocks), m_DescPages(p_DescPages)
       {}
 };
 
@@ -290,6 +290,7 @@ class PcaKargs
       loadVal(l_args.m_K);
       loadVal(l_args.m_Nnz);
       loadVal(l_args.m_TopK);
+			loadVal(l_args.m_Bblocks);
       loadVal(l_args.m_Cblocks);
       loadVal(l_args.m_DescPages);
       PcaArgs l_ret = hlsReg<PcaArgs, t_ArgPipeline>(l_args);
@@ -307,6 +308,7 @@ class PcaKargs
       storeVal(p_args.m_K);
       storeVal(p_args.m_Nnz);
       storeVal(p_args.m_TopK);
+			storeVal(p_args.m_Bblocks);
       storeVal(p_args.m_Cblocks);
       storeVal(p_args.m_DescPages);
     }
